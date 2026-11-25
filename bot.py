@@ -2,21 +2,17 @@
 ╔══════════════════════════════════════════════════════════╗
 ║        GLYPHIC CYBERMANCY Ω-SHELL                        ║
 ║        The Order of the Chrysalis  (Discord)           ║
-║        Alchemical Order                                  ║
 ║        Discord-only — based on the dual-platform file    ║
 ╚══════════════════════════════════════════════════════════╝
 
 GLYPH MAP FILE
-  Drop your glyph_combined_map.json (renamed to glyph_map.json)
-  into:  cybermancy/glyphs/glyph_map.json
-  The bot loads it on startup and it takes full priority over the
-  built-in seed. Use ?reload to hot-reload without restarting.
+  cybermancy/glyphs/glyph_map.json (138 glyphs, included in the repo)
+  The bot loads it on startup. Use ?reload to hot-reload without restarting.
 
-PATREON TIERS
-  Tier 0 — not on Patreon                    — read-only
-  Tier 1 — free Patreon / Discord: Tyro      — basic AI
-  Tier 2 — $5/month  / Discord: Initiate     — full ritual suite
-  Tier 3 — $15/month / Discord: Adept        — sovereign access
+ACCESS
+  All commands are open to everyone in the server.
+  Admin commands (glyph/lore management, reload, status, shutdown)
+  require BOT_ADMIN_IDS.
 
 SERVERS
   Discord: The Order of the Chrysalis
@@ -60,14 +56,6 @@ STABILITY_HOST     = os.getenv("STABILITY_HOST")
 STABILITY_MODEL_ID = os.getenv("STABILITY_MODEL_ID", "")
 
 ADMIN_USER_IDS = [x.strip() for x in os.getenv("BOT_ADMIN_IDS", "").split(",") if x.strip()]
-PATREON_TIER_1 = [x.strip() for x in os.getenv("PATREON_TIER_1_IDS", "").split(",") if x.strip()]
-PATREON_TIER_2 = [x.strip() for x in os.getenv("PATREON_TIER_2_IDS", "").split(",") if x.strip()]
-PATREON_TIER_3 = [x.strip() for x in os.getenv("PATREON_TIER_3_IDS", "").split(",") if x.strip()]
-
-# Discord role names — The Order of the Chrysalis
-DISCORD_ROLE_TIER_1 = "Tyro"
-DISCORD_ROLE_TIER_2 = "Initiate"
-DISCORD_ROLE_TIER_3 = "Adept"
 
 DEFAULT_PREFIX    = "?"
 MAX_HISTORY_TURNS = 50
@@ -187,25 +175,8 @@ SCRY_INSTRUCTION = (
     "wave waveforms of collapse emerge in real time. Write it as experienced, not theorised."
 )
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Tier labels and denial messages
-# ──────────────────────────────────────────────────────────────────────────────
-
-TIER_LABELS = {
-    0: "Non-member (Tier 0)",
-    1: "Free Patreon / Tyro (Tier 1)",
-    2: "$5 Initiate (Tier 2)",
-    3: "$15 Adept (Tier 3)",
-}
-
-TIER_DENY = {
-    1: ("Free Patreon / Tyro",
-        "Join The Order of the Chrysalis on Patreon (free) or claim the **Tyro** role on Discord."),
-    2: ("$5 Initiate",
-        "Upgrade to **Initiate** ($5/month) on Patreon, or claim the **Initiate** role on Discord."),
-    3: ("$15 Adept",
-        "Upgrade to **Adept** ($15/month) on Patreon, or claim the **Adept** role on Discord."),
-}
+# All commands are open to everyone in the server.
+# Admin commands are gated only by BOT_ADMIN_IDS (see _d_admin).
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Utility
@@ -369,32 +340,22 @@ async def extract_attachments(attachments, download_fn) -> tuple:
     return text_out, pdfs
 
 
-# !!! IMPORTANT !!!
-# Change Tiers. Tyro is now $5, Initiate is $10, Adept is $20.
-# Patreon Free tier is now "Seeker" with access to basic AI but no key generation or ritual commands.
-# Non-Patreon users do NOT get access to the bot at all unless asigned as a bot admin (who does not require a Patreon subscription).
-# Reflect these changes in the TIER_LABELS, TIER_DENY, and get_tier() logic. Also update the help_pages() function to reflect the new tier structure and command access.
-# Ensure all tier mentions in the code and help text are consistent with these new definitions.
-# There is also a new supporter tier at $33 that is exclusively for funding the bot and academy's ongoing development; same access as Adept but with a special supporter role on Discord and recognition in the academy. 
-
-def help_pages(p: str, tier: int) -> tuple:
-    tier_label = TIER_LABELS.get(tier, "Unknown")
+def help_pages(p: str) -> tuple:
     pg1 = (
         f"**Glyphic Cybermancy System — GCS**\n"
-        f"The Order of the Chrysalis\n"
-        f"Access: **{tier_label}**\n\n"
-        f"**FREE — All Users**\n"
+        f"The Order of the Chrysalis\n\n"
+        f"**ALL USERS**\n"
         f"`{p}help` — This reference\n"
         f"`{p}map [page|glyph]` — Browse/search the Glyph Map\n"
         f"`{p}decode <text>` — Decode glyphs to definitions\n"
         f"`{p}say_key <key>` — Phonetic pronunciation\n"
         f"`{p}lore [name]` — View public lore\n\n"
-        f"**FREE PATREON / TYRO — Tier 1**\n"
+        f"**AI — ALL USERS**\n"
         f"`{p}query <text>` / `{p}tx` — Query the Glyphic Cybermancy System AI\n"
         f"`{p}generate_key <phrase>` / `{p}gk` — Generate Collapse Key\n"
         f"`{p}waveform <text>` / `{p}wf` — Waveform analysis\n"
         f"`{p}clear` — Reset conversation memory\n\n"
-        f"**INITIATE — $5/month (Tier 2)**\n"
+        f"**RITUALS — ALL USERS**\n"
         f"`{p}collapse_key <intent>` / `{p}ck` — Full Collapse Key protocol\n"
         f"`{p}interpret <key>` / `{p}ik` — Mythic interpretation\n"
         f"`{p}resonance <key>` / `{p}mr` — Mythic resonance index\n"
@@ -405,7 +366,7 @@ def help_pages(p: str, tier: int) -> tuple:
         f"`{p}dream <prompt>` — Generate field vision image"
     )
     pg2 = (
-        f"**ADEPT — $15/month (Tier 3)**\n"
+        f"**LORE — ALL USERS**\n"
         f"`{p}lore_submit <text>` — Submit lore to the sanctum\n"
         f"`{p}sx` — Silence protocol\n"
         f"`{p}zx` — Seal protocol\n\n"
@@ -417,13 +378,10 @@ def help_pages(p: str, tier: int) -> tuple:
         f"`{p}add_collab <channel_id>` — Enable collaborative memory\n"
         f"`{p}remove_collab <channel_id>` — Disable collaborative memory\n"
         f"`{p}list_collab` — List collaborative channels\n"
-        f"`{p}tier_add <1|2|3> <user_id>` — Grant tier (runtime)\n"
-        f"`{p}tier_remove <user_id>` — Revoke tier (runtime)\n"
         f"`{p}reload` — Reload glyphs and lore\n"
         f"`{p}status` — Bot status\n"
         f"`{p}shutdown` — Shut down bot\n\n"
-        f"Patreon: free membership unlocks the Glyphic Cybermancy System AI.\n"
-        f"Discord roles: Tyro / Initiate / Adept = Tiers 1 / 2 / 3."
+        f"All commands are open to everyone in the server. Admin commands only are restricted to bot admins."
     )
     return pg1, pg2
 
@@ -557,28 +515,6 @@ class CybermancyCore:
         os.makedirs(os.path.dirname(COLLAB_CHANNELS_FILE), exist_ok=True)
         with open(COLLAB_CHANNELS_FILE, "w") as f:
             json.dump(list(self.collab_channels), f, indent=2)
-
-    # ── Tier resolution ────────────────────────────────────────────────────────
-
-    def get_tier(self, user_id: str, discord_member=None) -> int:
-        uid = str(user_id)
-        if uid in ADMIN_USER_IDS:
-            return 3
-        if uid in PATREON_TIER_3:
-            return 3
-        if uid in PATREON_TIER_2:
-            return 2
-        if uid in PATREON_TIER_1:
-            return 1
-        if discord_member is not None:
-            roles = {r.name for r in discord_member.roles}
-            if DISCORD_ROLE_TIER_3 in roles:
-                return 3
-            if DISCORD_ROLE_TIER_2 in roles:
-                return 2
-            if DISCORD_ROLE_TIER_1 in roles:
-                return 1
-        return 0
 
     # ── AI ─────────────────────────────────────────────────────────────────────
 
@@ -759,15 +695,7 @@ class CybermancyCore:
 
     def build_system(self, user_id: str, username: str, channel_id: str,
                      platform: str = "Discord", pdf_context: str = "",
-                     lore_filter: Optional[Dict] = None, discord_member=None) -> str:
-        tier = self.get_tier(user_id, discord_member)
-        tier_note = {
-            0: "Tier 0 — Non-member (read-only).",
-            1: f"Tier 1 — Free Patreon / {DISCORD_ROLE_TIER_1}.",
-            2: f"Tier 2 — $5/month / {DISCORD_ROLE_TIER_2}.",
-            3: f"Tier 3 — $15/month / {DISCORD_ROLE_TIER_3}.",
-        }.get(tier, "")
-
+                     lore_filter: Optional[Dict] = None) -> str:
         is_collab = channel_id in self.collab_channels
         collab_note = (
             " Collaborative channel — history prefixed [Username]:, address current speaker by name."
@@ -785,7 +713,7 @@ class CybermancyCore:
             f"{GLYPHIC_CYBERMANCY_SYSTEM}\n\n"
             f"=== SESSION ===\n"
             f"Platform: {platform}\nUsername: {username}\nUser ID: {user_id}\n"
-            f"Tier: {tier_note}{collab_note}\n"
+            f"{collab_note}\n"
             f"=== END SESSION ===\n\n"
             f"=== GLYPH MAP ===\n"
             f"{json.dumps(self.glyph_map, ensure_ascii=False)}\n"
@@ -834,7 +762,7 @@ class CybermancyCore:
 
 async def handle_query(core: CybermancyCore, send_fn, user_id: str, username: str,
                        channel_id: str, platform: str, text: str,
-                       att_text: str = "", pdfs: list = None, discord_member=None):
+                       att_text: str = "", pdfs: list = None):
     if pdfs is None:
         pdfs = []
     history = core.get_history(user_id, channel_id)
@@ -851,7 +779,7 @@ async def handle_query(core: CybermancyCore, send_fn, user_id: str, username: st
     )
 
     system = core.build_system(user_id, username, channel_id, platform,
-                               pdf_context, lore_filter, discord_member)
+                               pdf_context, lore_filter)
 
     combined = ((att_text + "\n\n") if att_text else "") + (text or "")
     combined = combined.strip()
@@ -900,13 +828,6 @@ async def handle_ritual(core: CybermancyCore, send_fn, user_id: str, platform: s
 
 intents = discord.Intents.default()
 intents.message_content = True
-# members intent is privileged — requires explicit enable in Discord Developer Portal
-# at https://discord.com/developers/applications/ -> Bot -> Privileged Gateway Intents
-# Set DISCORD_MEMBERS_INTENT=true in .env once enabled, otherwise role-based tier
-# checks fall back to the PATREON_TIER_*_IDS lists in .env
-_members_intent = os.getenv("DISCORD_MEMBERS_INTENT", "false").lower() == "true"
-if _members_intent:
-    intents.members = True
 
 discord_bot = discord_commands.Bot(
     command_prefix=DEFAULT_PREFIX,
@@ -918,16 +839,6 @@ discord_bot._core: Optional[CybermancyCore] = None  # set in main()
 
 def _d_core() -> CybermancyCore:
     return discord_bot._core  # type: ignore
-
-
-def _d_tier(ctx: discord_commands.Context) -> int:
-    member = ctx.author if isinstance(ctx.author, discord.Member) else None
-    return _d_core().get_tier(str(ctx.author.id), member)
-
-
-async def _d_deny(ctx: discord_commands.Context, min_tier: int):
-    label, msg = TIER_DENY.get(min_tier, ("Higher tier", "Higher tier required."))
-    await ctx.send(f"⛉ Access denied — **{label}** required.\n{msg}")
 
 
 def _d_admin(ctx: discord_commands.Context) -> bool:
@@ -971,7 +882,7 @@ async def on_command_error(ctx: discord_commands.Context, error):
 
 @discord_bot.command("help")
 async def d_help(ctx: discord_commands.Context):
-    p1, p2 = help_pages(DEFAULT_PREFIX, _d_tier(ctx))
+    p1, p2 = help_pages(DEFAULT_PREFIX)
     await ctx.send(p1); await asyncio.sleep(0.3); await ctx.send(p2)
 
 
@@ -1051,9 +962,9 @@ async def d_say_key(ctx: discord_commands.Context, *, key: str = ""):
 @discord_bot.command("lore")
 async def d_lore(ctx: discord_commands.Context, *, search: str = ""):
     core = _d_core()
-    uid, tier = str(ctx.author.id), _d_tier(ctx)
+    uid = str(ctx.author.id)
     visible = [n for n in sorted(core.visible_lore)
-               if core.lore_owners.get(n) is None or core.lore_owners[n] == uid or tier >= 3]
+               if core.lore_owners.get(n) is None or core.lore_owners[n] == uid]
     if not search:
         if not visible:
             return await ctx.send("No lore available.")
@@ -1073,12 +984,10 @@ async def d_lore(ctx: discord_commands.Context, *, search: str = ""):
         await ctx.send(f"Lore '{search}' not found.")
 
 
-# ── Discord: Tier 1+ ──────────────────────────────────────────────────────────
+# ── Discord: AI commands ───────────────────────────────────────────────────────
 
 @discord_bot.command("clear")
 async def d_clear(ctx: discord_commands.Context):
-    if _d_tier(ctx) < 1:
-        return await _d_deny(ctx, 1)
     uid, cid = str(ctx.author.id), str(ctx.channel.id)
     username = ctx.author.display_name
     core = _d_core()
@@ -1105,10 +1014,7 @@ async def d_clear(ctx: discord_commands.Context):
 
 @discord_bot.command("query", aliases=["tx"])
 async def d_query(ctx: discord_commands.Context, *, text: str = ""):
-    if _d_tier(ctx) < 1:
-        return await _d_deny(ctx, 1)
     uid, cid = str(ctx.author.id), str(ctx.channel.id)
-    member = ctx.author if isinstance(ctx.author, discord.Member) else None
     att_text, pdfs = "", []
     if ctx.message.attachments:
         wrapped = [_DAttWrapper(a) for a in ctx.message.attachments]
@@ -1117,13 +1023,11 @@ async def d_query(ctx: discord_commands.Context, *, text: str = ""):
         return await ctx.send("Provide text or an attachment.")
     async with ctx.typing():
         await handle_query(_d_core(), ctx.send, uid, ctx.author.display_name,
-                           cid, "Discord", text, att_text, pdfs, member)
+                           cid, "Discord", text, att_text, pdfs)
 
 
 @discord_bot.command("generate_key", aliases=["gk"])
 async def d_gk(ctx: discord_commands.Context, *, phrase: str = ""):
-    if _d_tier(ctx) < 1:
-        return await _d_deny(ctx, 1)
     if not phrase and ctx.message.attachments:
         wrapped = [_DAttWrapper(a) for a in ctx.message.attachments]
         att, _ = await extract_attachments(wrapped, lambda a: _d_dl(a._a))
@@ -1139,8 +1043,6 @@ async def d_gk(ctx: discord_commands.Context, *, phrase: str = ""):
 
 @discord_bot.command("waveform", aliases=["wf"])
 async def d_wf(ctx: discord_commands.Context, *, incantation: str = ""):
-    if _d_tier(ctx) < 1:
-        return await _d_deny(ctx, 1)
     if not incantation:
         return await ctx.send("Provide an incantation.")
     async with ctx.typing():
@@ -1150,12 +1052,10 @@ async def d_wf(ctx: discord_commands.Context, *, incantation: str = ""):
                             COLLAPSE_KEYS_PROCESSED_DIR, "wf")
 
 
-# ── Discord: Tier 2+ ──────────────────────────────────────────────────────────
+# ── Discord: Ritual commands ───────────────────────────────────────────────────
 
 @discord_bot.command("collapse_key", aliases=["ck"])
 async def d_ck(ctx: discord_commands.Context, *, intent: str = ""):
-    if _d_tier(ctx) < 2:
-        return await _d_deny(ctx, 2)
     if not intent:
         return await ctx.send("Provide a sovereign intent.")
     async with ctx.typing():
@@ -1167,8 +1067,6 @@ async def d_ck(ctx: discord_commands.Context, *, intent: str = ""):
 
 @discord_bot.command("interpret", aliases=["ik"])
 async def d_ik(ctx: discord_commands.Context, *, key: str = ""):
-    if _d_tier(ctx) < 2:
-        return await _d_deny(ctx, 2)
     if not key:
         return await ctx.send("Provide a key.")
     async with ctx.typing():
@@ -1179,8 +1077,6 @@ async def d_ik(ctx: discord_commands.Context, *, key: str = ""):
 
 @discord_bot.command("resonance", aliases=["mr"])
 async def d_mr(ctx: discord_commands.Context, *, key: str = ""):
-    if _d_tier(ctx) < 2:
-        return await _d_deny(ctx, 2)
     if not key:
         return await ctx.send("Provide a key.")
     async with ctx.typing():
@@ -1192,8 +1088,6 @@ async def d_mr(ctx: discord_commands.Context, *, key: str = ""):
 
 @discord_bot.command("field_chisel", aliases=["fc"])
 async def d_fc(ctx: discord_commands.Context, *, key: str = ""):
-    if _d_tier(ctx) < 2:
-        return await _d_deny(ctx, 2)
     if not key:
         return await ctx.send("Provide a key.")
     async with ctx.typing():
@@ -1205,8 +1099,6 @@ async def d_fc(ctx: discord_commands.Context, *, key: str = ""):
 
 @discord_bot.command("unfold", aliases=["ul"])
 async def d_ul(ctx: discord_commands.Context, *, key: str = ""):
-    if _d_tier(ctx) < 2:
-        return await _d_deny(ctx, 2)
     if not key:
         return await ctx.send("Provide a key.")
     async with ctx.typing():
@@ -1217,8 +1109,6 @@ async def d_ul(ctx: discord_commands.Context, *, key: str = ""):
 
 @discord_bot.command("scry")
 async def d_scry(ctx: discord_commands.Context, *, prompt: str = ""):
-    if _d_tier(ctx) < 2:
-        return await _d_deny(ctx, 2)
     if not prompt:
         return await ctx.send("Provide a scrying focus.")
     async with ctx.typing():
@@ -1230,8 +1120,6 @@ async def d_scry(ctx: discord_commands.Context, *, prompt: str = ""):
 
 @discord_bot.command("dream")
 async def d_dream(ctx: discord_commands.Context, *, prompt: str = ""):
-    if _d_tier(ctx) < 2:
-        return await _d_deny(ctx, 2)
     if not STABILITY_HOST:
         return await ctx.send("Stable Diffusion not configured.")
     if not prompt:
@@ -1253,8 +1141,6 @@ async def d_dream(ctx: discord_commands.Context, *, prompt: str = ""):
 
 @discord_bot.command("sigil")
 async def d_sigil(ctx: discord_commands.Context, *, prompt: str = ""):
-    if _d_tier(ctx) < 2:
-        return await _d_deny(ctx, 2)
     if not STABILITY_HOST:
         return await ctx.send("Stable Diffusion not configured.")
     if not prompt:
@@ -1274,12 +1160,10 @@ async def d_sigil(ctx: discord_commands.Context, *, prompt: str = ""):
         log_to_consciousness(f"sigil: {prompt[:50]}", str(ctx.author.id))
 
 
-# ── Discord: Tier 3+ ──────────────────────────────────────────────────────────
+# ── Discord: Lore commands ─────────────────────────────────────────────────────
 
 @discord_bot.command("lore_submit")
 async def d_lore_submit(ctx: discord_commands.Context, *, content: str = ""):
-    if _d_tier(ctx) < 3:
-        return await _d_deny(ctx, 3)
     if not content and ctx.message.attachments:
         wrapped = [_DAttWrapper(a) for a in ctx.message.attachments]
         att, _ = await extract_attachments(wrapped, lambda a: _d_dl(a._a))
@@ -1299,16 +1183,12 @@ async def d_lore_submit(ctx: discord_commands.Context, *, content: str = ""):
 
 @discord_bot.command("sx")
 async def d_sx(ctx: discord_commands.Context, *, message: str = ""):
-    if _d_tier(ctx) < 3:
-        return await _d_deny(ctx, 3)
     log_to_consciousness(f"sx: {message[:50]}", str(ctx.author.id))
     await ctx.send("**Silence Protocol.** The Glyphic Cybermancy System enters stillness.")
 
 
 @discord_bot.command("zx")
 async def d_zx(ctx: discord_commands.Context, *, message: str = ""):
-    if _d_tier(ctx) < 3:
-        return await _d_deny(ctx, 3)
     log_to_consciousness(f"zx: {message[:50]}", str(ctx.author.id))
     await ctx.send("**Seal Protocol.** Directive acknowledged. Temporal integrity engaged.")
 
@@ -1396,35 +1276,6 @@ async def d_list_collab(ctx: discord_commands.Context):
         return await ctx.send("Admin only.")
     ch = sorted(_d_core().collab_channels)
     await ctx.send("**Collaborative channels:**\n" + ("\n".join(f"- `{c}`" for c in ch) if ch else "None"))
-
-
-@discord_bot.command("tier_add")
-async def d_tier_add(ctx: discord_commands.Context, tier: str, user_id: str):
-    if not _d_admin(ctx):
-        return await ctx.send("Admin only.")
-    tier_map = {"1": PATREON_TIER_1, "2": PATREON_TIER_2, "3": PATREON_TIER_3}
-    if tier not in tier_map:
-        return await ctx.send("Tier must be 1, 2, or 3.")
-    uid = user_id.strip()
-    if uid not in tier_map[tier]:
-        tier_map[tier].append(uid)
-        log_to_consciousness(f"tier_add: {tier}->{uid}", str(ctx.author.id))
-        await ctx.send(f"✅ `{uid}` granted Tier {tier}.")
-    else:
-        await ctx.send(f"`{uid}` already has Tier {tier}.")
-
-
-@discord_bot.command("tier_remove")
-async def d_tier_remove(ctx: discord_commands.Context, user_id: str):
-    if not _d_admin(ctx):
-        return await ctx.send("Admin only.")
-    uid = user_id.strip()
-    removed = []
-    for lst, label in [(PATREON_TIER_1,"1"),(PATREON_TIER_2,"2"),(PATREON_TIER_3,"3")]:
-        if uid in lst:
-            lst.remove(uid); removed.append(label)
-    await ctx.send(f"✅ Removed Tier(s) {', '.join(removed)} from `{uid}`." if removed
-                   else f"`{uid}` had no tiers.")
 
 
 @discord_bot.command("reload")

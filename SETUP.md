@@ -46,13 +46,10 @@ What installs, and why:
 1. Go to https://discord.com/developers/applications → **New Application** → name it.
 2. **Bot** (left menu) → **Reset Token** → **Copy**. This is a password. Never paste it into code, chat, screenshots, or git.
 3. Same page, **Privileged Gateway Intents** → enable **Message Content Intent** → **Save Changes**. Without this, `?` prefix commands are invisible to the bot.
-   - Only enable **Server Members Intent** if you also set `DISCORD_MEMBERS_INTENT=true` in `.env`. If the code asks for it and the portal does not have it, Discord refuses the connection.
    - Make sure **Requires OAuth2 Code Grant** (Bot → Authorization Flow) is **unchecked**. If it is checked, the invite URL generator asks for a redirect URI and the invite will not work.
 4. **OAuth2 → URL Generator** → Integration Type: **Guild Install** → Scopes: only `bot` → Permissions: **View Channel, Send Messages, Read Message History, Embed Links, Attach Files**. Do not check Administrator. Copy the generated URL at the bottom, open it, pick your server, authorize. The bot appears in the member list, offline until it is run.
-5. In your Discord server, create the roles exactly as the code expects (case-sensitive):
-   - `Tyro` — Tier 1
-   - `Initiate` — Tier 2
-   - `Adept` — Tier 3
+
+All commands are open to everyone in the server. Only admin commands (glyph/lore management, reload, status, shutdown) are restricted, by `BOT_ADMIN_IDS` in `.env`.
 
 ## 3. `.env` file
 
@@ -66,7 +63,6 @@ Fill in `.env`, one `NAME=value` per line, no spaces around `=`, no quotes, no b
 ```
 DISCORD_BOT_TOKEN=
 BOT_ADMIN_IDS=
-DISCORD_MEMBERS_INTENT=false
 ANYTHINGLLM_URL=http://localhost:3001
 ANYTHINGLLM_API_KEY=
 ANYTHINGLLM_WORKSPACE=cybermancy
@@ -95,7 +91,7 @@ Expected output:
 [Discord] Online — <bot name>
 ```
 
-Test in Discord: `?help`, then `?status` (admin only), then `?map 1`, `?decode Θ ⋄`, `?say_key Θ⋄`, and `?query hello` (Tier 1+, admin is Tier 3). A local 8B reply can take 30 seconds to a couple of minutes on first reply.
+Test in Discord: `?help`, then `?status` (admin only), then `?map 1`, `?decode Θ ⋄`, `?say_key Θ⋄`, and `?query hello`. A local 8B reply can take 30 seconds to a couple of minutes on first reply.
 
 Stop with Ctrl+C. The bot only runs while that computer is on and the terminal is open.
 
@@ -103,21 +99,15 @@ Stop with Ctrl+C. The bot only runs while that computer is on and the terminal i
 
 For 24/7, run it on something always-on: a VPS, a Raspberry Pi, or a bot host. Same steps there: copy the folder, install Python + requirements, set the `.env` (or the host's env vars — never upload `.env` to git), run it under a process manager (`systemd`, `pm2`, `screen`/`tmux`) so it restarts after a reboot/crash. Note: AnythingLLM at `localhost:3001` only works if it runs on the same host as the bot.
 
-## 7. Tier change — not yet implemented
-
-The new tier structure (Seeker free with basic AI only, Tyro $5, Initiate $10, Adept $20, $33 Supporter with Adept access + supporter role, non-Patreon no access unless admin) is not implemented in this code. The running code still uses the old tiers (Tyro free, Initiate $5, Adept $15).
-
 ## Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
 | `[Glyphs] No glyph_map.json found` | File is not at `cybermancy/glyphs/glyph_map.json` relative to where you run `py bot.py`. Check with `dir cybermancy\glyphs` — it must be 14,917 bytes, not 2 bytes. A 2-byte file is the empty `{}` the bot saved on a run with no map; copy the real file over it with `-Force`, then restart |
 | Bot is online but ignores `?` commands | Message Content Intent off in the portal — see step 2.3, then restart |
-| `PrivilegedIntentsRequired` / login refused | `DISCORD_MEMBERS_INTENT=true` in `.env` but Server Members Intent off in the portal (or vice versa) |
 | Invite URL greyed out, asks for a redirect URI | A scope beyond `bot` is checked, or **Requires OAuth2 Code Grant** is on in Bot settings — uncheck both, use Guild Install + `bot` only |
 | `401 Unauthorized` on login | Wrong / reset Discord token — copy a fresh one from Bot → Reset Token |
 | `python-dotenv could not parse statement` | A line in `.env` is malformed — usually a bare value with no `NAME=` in front, or a duplicated paste. Each line must be `NAME=value` |
 | AI commands say no AI configured | Neither `ANYTHINGLLM_API_KEY` nor a cloud key is set in `.env` |
 | `?query` prints `<think>` reasoning / invented glyphs | Old `bot.py` still running — stop it, replace the file, restart. Current `bot.py` strips think blocks and only uses glyphs from the 138-glyph map |
 | `?dream` / `?sigil` say not configured | `STABILITY_HOST` not set — optional |
-| `?tier_add` grant disappears after restart | By design — runtime-only. Put the user ID in the `PATREON_TIER_*_IDS` lists in `.env` for a permanent grant |

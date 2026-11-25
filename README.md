@@ -6,11 +6,13 @@ Discord-only. No Stoat. Python, `discord.py`.
 
 ## What it does
 
-- `?help`, `?map`, `?decode`, `?say_key`, `?lore` — free, no AI key needed
-- `?query` / `?tx`, `?generate_key` / `?gk`, `?waveform` / `?wf` — Tier 1+
-- `?collapse_key` / `?ck`, `?interpret` / `?ik`, `?resonance` / `?mr`, `?field_chisel` / `?fc`, `?unfold` / `?ul`, `?scry`, `?sigil`, `?dream` — Tier 2+
-- `?lore_submit`, `?sx`, `?zx` — Tier 3+
-- Admin: `glyph_add` / `glyph_remove`, `lore_add` / `lore_remove`, `add_collab` / `remove_collab` / `list_collab`, `tier_add` / `tier_remove`, `reload`, `status`, `shutdown`
+All commands are open to everyone in the server. Admin commands are restricted to bot admins (`BOT_ADMIN_IDS`).
+
+- `?help`, `?map`, `?decode`, `?say_key`, `?lore` — no AI key needed
+- `?query` / `?tx`, `?generate_key` / `?gk`, `?waveform` / `?wf`
+- `?collapse_key` / `?ck`, `?interpret` / `?ik`, `?resonance` / `?mr`, `?field_chisel` / `?fc`, `?unfold` / `?ul`, `?scry`, `?sigil`, `?dream`
+- `?lore_submit`, `?sx`, `?zx`
+- Admin: `glyph_add` / `glyph_remove`, `lore_add` / `lore_remove`, `add_collab` / `remove_collab` / `list_collab`, `reload`, `status`, `shutdown`
 
 Glyphs are introduced as `` `Θ` (`tha`) `` — backticks, never angle brackets, never emoji as glyphs. Only glyphs in the map are used; a concept with no glyph is stated in plain words, not invented.
 
@@ -26,7 +28,7 @@ Qwen3 is a reasoning model: the bot tells it not to output `<think>` reasoning, 
 
 ## Setup
 
-See [SETUP.md](SETUP.md) for the full from-scratch guide: Python 3.10+, venv, Discord Developer Portal application/token, Message Content Intent, OAuth2 invite, roles `Tyro` / `Initiate` / `Adept`, `.env` setup, and running the bot.
+See [SETUP.md](SETUP.md) for the full from-scratch guide: Python 3.10+, venv, Discord Developer Portal application/token, Message Content Intent, OAuth2 invite, `.env` setup, and running the bot.
 
 Quick start:
 
@@ -43,5 +45,4 @@ Never commit `.env`. Never paste tokens in chat or code.
 
 ## Status / notes
 
-- Current tiers in code are the old ones (Tyro free, Initiate $5, Adept $15). The new tier structure (Seeker free, Tyro $5, Initiate $10, Adept $20, $33 Supporter, non-Patreon no access unless admin) is not yet implemented.
 - The bot only runs while its host PC is on and the terminal is open. For 24/7, run it on an always-on host under a process manager.
