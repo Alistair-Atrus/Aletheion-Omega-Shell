@@ -1,0 +1,11 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+cybermancy/history/
+cybermancy/collapse_keys/
+cybermancy/pdf_analysis/
+cybermancy/images/
+cybermancy/sigil_images/
+cybermancy/archives/
