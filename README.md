@@ -8,6 +8,8 @@ It is **Discord-only** (no Stoat, no other platform), free to use, with no tiers
 
 Prefix: `?` — e.g. `?help`, `?query`, `?gk`
 
+Changes are tracked in [CHANGELOG.md](CHANGELOG.md).
+
 ## What it does
 
 ### Glyphs — the core of the bot
@@ -63,7 +65,7 @@ Two small protocol commands: `?sx` puts the system into stillness (Silence Proto
 
 ### Per-user threads and the master log
 
-When the bot talks to its local AI (AnythingLLM), **each Discord user gets their own thread** in the AnythingLLM workspace, so one person's conversation does not bleed into another's. The bot only sends the latest message each turn — the thread holds the history — and sends the full system prompt and glyph map only on the first message in a thread (and every 10th after that, as a refresher).
+When the bot talks to its local AI (AnythingLLM), **each Discord user gets their own thread** in the AnythingLLM workspace, so one person's conversation does not bleed into another's. Each thread is titled `Discord <username> (<user_id>)`, so you can tell whose is whose in AnythingLLM. The bot only sends the latest message each turn — the thread holds the history — and sends the full system prompt and glyph map only on the first message in a thread (and every 10th after that, as a refresher).
 
 There is no aggregate thread in AnythingLLM, so the bot keeps its own master record instead: every AI turn (queries and rituals) is appended to `cybermancy/master_log.jsonl`, one JSON line per turn, with the user, the input, the response, and the thread it went to. That file, plus the thread list in AnythingLLM, is the master view. It can be turned off with `ANYTHINGLLM_THREADS=0`, which makes the bot use the shared OpenAI-compatible endpoint instead.
 
