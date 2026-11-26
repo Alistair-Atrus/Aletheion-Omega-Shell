@@ -25,7 +25,7 @@ SERVERS
 import discord
 from discord.ext import commands as discord_commands
 
-import json, re, datetime, os, sys, asyncio, base64, hashlib
+import json, re, datetime, os, sys, asyncio, base64, hashlib, random
 import urllib.parse
 from typing import Optional, Dict, List, cast
 from dotenv import load_dotenv
@@ -92,13 +92,16 @@ GEMINI_API_URL = (
     f"https://generativelanguage.googleapis.com/v1beta/models"
     f"/{GEMINI_MODEL}:generateContent"
 )
-# Pollinations base URL — overridable for testing (points at a mock server).
-POLLINATIONS_BASE   = os.getenv("POLLINATIONS_BASE", "https://image.pollinations.ai").rstrip("/")
-# Pollinations API key (free account at https://auth.pollinations.ai).
-# Without it images still generate, but are watermarked — nologo=true is
-# ignored for anonymous requests. With the key, nologo works and the
-# watermark is gone, and the rate limit rises to 1 request / 5s.
-POLLINATIONS_API_KEY = os.getenv("POLLINATIONS_API_KEY", "")
+# Cloudflare Workers AI — the image provider for ?dream / ?sigil.
+# Free account: 10,000 Neurons/day, resets daily, no credit card.
+# FLUX.1-schnell costs ~57.6 neurons per 1024x1024 4-step image, so the
+# free allowance covers about 173 images a day, with no watermark.
+# Get both values at dash.cloudflare.com: AI -> Workers AI -> Use REST API
+# -> Create a Workers AI API Token. CLOUDFLARE_API_BASE is overridable
+# for testing (points at a mock server).
+CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
+CLOUDFLARE_API_TOKEN  = os.getenv("CLOUDFLARE_API_TOKEN", "")
+CLOUDFLARE_API_BASE   = os.getenv("CLOUDFLARE_API_BASE", "https://api.cloudflare.com/client/v4").rstrip("/")
 
 # Both platforms: byte limit (not char limit — glyphs are multi-byte UTF-8)
 HARD_LIMIT = 1900
@@ -1183,47 +1186,59 @@ class CybermancyCore:
             f"{lore_section}{pdf_context}"
         )
 
-    # ── Image generation: Pollinations only (free, no API key) ─────────────────
+    # ── Image generation: Cloudflare Workers AI only (free) ───────────────────
 
-    async def _pollinations_image(self, prompt: str, mode: str = "dream") -> Optional[bytes]:
-        """Generate an image via Pollinations (free, no API key, FLUX model).
+    async def _cloudflare_image(self, prompt: str, mode: str = "dream") -> Optional[bytes]:
+        """Generate an image via Cloudflare Workers AI, FLUX.1-schnell.
 
-        The only image provider for ?dream / ?sigil: GET
-        https://image.pollinations.ai/prompt/{prompt}?width=512&height=512&model=flux&nologo=true
-        Returns PNG/JPEG bytes, or None if the service errors or returns
-        something that is not an image.
+        The only image provider for ?dream / ?sigil: POST
+        https://api.cloudflare.com/client/v4/accounts/{id}/ai/run/@cf/black-forest-labs/flux-1-schnell
+        with {"prompt", "steps": 4, "seed"}. The reply is JSON whose
+        result.image is a base64 image (or, rarely, raw image bytes).
+        A fresh random seed is sent on every call, so the same prompt
+        never comes back as a cached duplicate — each generation is new.
+        No watermark. Returns image bytes, or None on any failure.
         """
+        if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
+            return None
         if mode == "sigil":
             full = (f"mystical sigil, {prompt}, sacred geometry, esoteric symbol, "
                     "monochrome white ink on black background, high contrast, vector art, no text")
         else:
             full = f"{prompt}, mystical, occult, sacred geometry, dreamlike, esoteric, glyphic, cosmic"
-        url = (f"{POLLINATIONS_BASE}/prompt/"
-               + urllib.parse.quote(full[:500])
-               + "?width=512&height=512&model=flux&nologo=true")
-        # Bearer token auth: without a key the request still works, but
-        # Pollinations ignores nologo and watermarks the image.
-        headers = ({"Authorization": f"Bearer {POLLINATIONS_API_KEY}"}
-                   if POLLINATIONS_API_KEY else {})
+        url = (f"{CLOUDFLARE_API_BASE}/accounts/{CLOUDFLARE_ACCOUNT_ID}"
+               f"/ai/run/@cf/black-forest-labs/flux-1-schnell")
+        headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+                   "Content-Type": "application/json"}
+        body = {"prompt": full[:2048], "steps": 4,
+                "seed": random.randint(0, 2 ** 31 - 1)}
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=300)) as session:
-                async with session.get(url, headers=headers) as resp:
+                async with session.post(url, json=body, headers=headers) as resp:
                     if resp.status != 200:
-                        print(f"[Pollinations] {resp.status}: {(await resp.text())[:200]}")
+                        print(f"[Cloudflare image] {resp.status}: {(await resp.text())[:300]}")
                         return None
                     ctype = resp.headers.get("Content-Type", "")
-                    if "image" not in ctype:
-                        print(f"[Pollinations] Unexpected content type: {ctype}")
+                    if "image" in ctype:
+                        data = await resp.read()
+                        return data or None
+                    data = await resp.json()
+                    if not data.get("success", True):
+                        print(f"[Cloudflare image] API error: {str(data.get('errors'))[:300]}")
                         return None
-                    data = await resp.read()
-                    return data or None
+                    b64 = (data.get("result") or {}).get("image")
+                    if not b64:
+                        print("[Cloudflare image] No image in response.")
+                        return None
+                    return base64.b64decode(b64)
         except Exception as e:
-            print(f"[Pollinations] Error: {e}")
+            print(f"[Cloudflare image] Error: {e}")
             return None
 
     async def generate_image(self, prompt: str, mode: str = "dream") -> Optional[bytes]:
-        # Pollinations is the only image provider — no SD host, no Gemini.
-        return await self._pollinations_image(prompt, mode)
+        # Cloudflare Workers AI is the only image provider — no Pollinations,
+        # no Gemini, no Stable Diffusion host.
+        return await self._cloudflare_image(prompt, mode)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1655,7 +1670,10 @@ async def d_scry(ctx: discord_commands.Context, *, prompt: str = ""):
 
 @discord_bot.command("dream")
 async def d_dream(ctx: discord_commands.Context, *, prompt: str = ""):
-    # Images are Pollinations only (free, no key) — always available, no config gate.
+    # Images are Cloudflare Workers AI only — needs CLOUDFLARE_ACCOUNT_ID +
+    # CLOUDFLARE_API_TOKEN in .env, otherwise the command reports not configured.
+    if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
+        return await ctx.send("Image generation not configured — set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env (free Cloudflare account, Workers AI).")
     if not prompt:
         return await ctx.send("Provide a prompt.")
     async with ctx.typing():
@@ -1675,7 +1693,10 @@ async def d_dream(ctx: discord_commands.Context, *, prompt: str = ""):
 
 @discord_bot.command("sigil")
 async def d_sigil(ctx: discord_commands.Context, *, prompt: str = ""):
-    # Images are Pollinations only (free, no key) — always available, no config gate.
+    # Images are Cloudflare Workers AI only — needs CLOUDFLARE_ACCOUNT_ID +
+    # CLOUDFLARE_API_TOKEN in .env, otherwise the command reports not configured.
+    if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
+        return await ctx.send("Image generation not configured — set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env (free Cloudflare account, Workers AI).")
     if not prompt:
         return await ctx.send("Provide a prompt.")
     async with ctx.typing():
@@ -1836,7 +1857,7 @@ async def d_status(ctx: discord_commands.Context):
         f"Local (AnythingLLM): {'✅ ' + ANYTHINGLLM_WORKSPACE if ANYTHINGLLM_API_KEY else '❌'} | "
         f"Claude: {'✅' if ANTHROPIC_API_KEY else '❌'} | "
         f"Gemini: {'✅' if GEMINI_API_KEY else '❌'} | "
-        f"Images: Pollinations ✅ (free, {'no watermark' if POLLINATIONS_API_KEY else 'watermarked — set POLLINATIONS_API_KEY'})"
+        f"Images: {'Cloudflare Workers AI ✅ (free)' if CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN else '— (set CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN)'}"
     )
 
 
