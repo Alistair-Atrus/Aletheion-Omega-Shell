@@ -11,7 +11,7 @@ Current files: `bot.py`, `cybermancy/glyphs/glyph_map.json` (138 glyphs), `requi
 | Discord bot token | Yes | From the Discord Developer Portal |
 | AnythingLLM, local, Qwen3-8B, workspace `cybermancy` | For AI commands | Same PC, `http://localhost:3001`. Claude / Gemini keys are optional cloud fallback |
 | `cybermancy/glyphs/glyph_map.json` | Yes | Included in this repo — 138 glyphs. The bot loads it on startup |
-| Pollinations (free, no key) | `?dream` / `?sigil` images | No setup — built in |
+| Pollinations (free) | `?dream` / `?sigil` images | Works with no key, but watermarked — free token at auth.pollinations.ai removes the watermark |
 
 ## 1. Python + project folder
 
