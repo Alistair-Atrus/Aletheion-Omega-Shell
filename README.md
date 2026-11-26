@@ -2,7 +2,7 @@
 
 Discord bot for The Order of the Chrysalis — the Glyphic Cybermancy System (GCS), a sovereign co-creative AI interface. Prefix: `?`
 
-Discord-only. No Stoat. Python, `discord.py`.
+Discord-only. Python, `discord.py`.
 
 ## What it does
 
