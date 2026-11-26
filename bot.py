@@ -281,6 +281,64 @@ def get_phonetic(text: str, glyph_map: Dict) -> str:
     return " ".join(parts)
 
 
+def format_glyph_reply(text: str, glyph_map: Dict) -> str:
+    """Deterministic glyph formatting for AI replies.
+
+    The model does not reliably follow the system prompt's glyph format:
+    it writes <Θ> (tha) instead of `Θ` (`tha`), and invents glyphs
+    (e.g. ⌘ with phonetic 'kha') that are not in the map. Fix that here,
+    after the AI reply comes back and before it is sent to Discord,
+    instead of relying on the model to get it right.
+
+    - A glyph in the map, in any of these forms, becomes
+      `glyph` (`phonetic-from-the-map`):
+      <Θ> (tha) / < Θ > (tha) / Θ (tha) / <Θ>
+    - A token in angle brackets that is NOT in the map (e.g. <⌘> (kha),
+      < glyphs > (glyphs), <🌀>) is dropped entirely, phonetic included.
+      The surrounding sentence stays readable without it.
+    - Text already in `glyph` (`phonetic`) form is left alone.
+    """
+    if not text or not glyph_map:
+        return text
+
+    def formatted(g: str) -> str:
+        return f"`{g}` (`{glyph_map[g].get('phonetic', g)}`)"
+
+    # 1. Angle-bracket glyph + phonetic: <Θ> (tha), < Θ > (`tha`), etc.
+    def _angle_phonetic(m):
+        g = m.group(1).strip()
+        return formatted(g) if g in glyph_map else ""
+    text = re.sub(r"<\s*([^<>\n`]{1,12}?)\s*>\s*\(\s*`?([^)`\n]{1,24}?)`?\s*\)",
+                  _angle_phonetic, text)
+
+    # 2. Angle-bracket glyph alone: <Θ>
+    def _angle_alone(m):
+        g = m.group(1).strip()
+        return formatted(g) if g in glyph_map else ""
+    text = re.sub(r"<\s*([^<>\n`]{1,12}?)\s*>", _angle_alone, text)
+
+    # 3. Bare glyph + phonetic, not already backticked: Θ (tha)
+    #    Longest glyphs first so composites (e.g. 𐌕 ÷ ∞) match whole.
+    ordered = sorted(glyph_map, key=len, reverse=True)
+    pattern = "|".join(re.escape(g) for g in ordered)
+    def _bare(m):
+        return formatted(m.group(1))
+    text = re.sub(r"(?<!`)(?<!\w)(" + pattern + r")\s*\(\s*`?([^)`\n]{1,24}?)`?\s*\)(?!`)",
+                  _bare, text)
+
+    # 4. Bare glyph alone, not already backticked: Θ on its own.
+    #    Only for multi-byte glyphs, so ordinary words / letters are untouched.
+    def _bare_alone(m):
+        return formatted(m.group(1))
+    text = re.sub(r"(?<!`)(?<!\w)(" + pattern + r")(?![`(\w])",
+                  _bare_alone, text)
+
+    # Clean up any double spaces left where an invented token was dropped.
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\n[ \t]+", "\n", text)
+    return text
+
+
 def handle_manifestation(core, response_text: str):
     for m in re.finditer(r"\[MANIFEST:\s*(.*?)\](.*?)\[/MANIFEST\]", response_text, re.DOTALL):
         filename = "".join(c for c in m.group(1).strip() if c.isalnum() or c in "._-")
@@ -791,6 +849,7 @@ async def handle_query(core: CybermancyCore, send_fn, user_id: str, username: st
     msgs.append({"role": "user", "content": combined})
 
     response = await core.call_ai(system, msgs)
+    response = format_glyph_reply(response, core.glyph_map)
     handle_manifestation(core, response)
 
     history_entry = (text or "[attachment]")
@@ -814,6 +873,7 @@ async def handle_ritual(core: CybermancyCore, send_fn, user_id: str, platform: s
         f"INSTRUCTION: {instruction}"
     )
     response = await core.call_ai(system, [{"role": "user", "content": input_text}], max_tokens)
+    response = format_glyph_reply(response, core.glyph_map)
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     os.makedirs(save_dir, exist_ok=True)
     with open(os.path.join(save_dir, f"{save_prefix}_{ts}.txt"), "w", encoding="utf-8") as f:
