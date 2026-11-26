@@ -18,6 +18,12 @@ SERVERS
   Discord: The Order of the Chrysalis
 """
 
+# Version — semantic versioning (MAJOR.MINOR.PATCH). The single source of
+# truth for the bot's version: shown in ?status and the startup log, and
+# tracked in CHANGELOG.md. Bump PATCH for fixes, MINOR for new features,
+# MAJOR for breaking changes to commands or behaviour.
+__version__ = "1.0.0"
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1416,7 +1422,7 @@ async def send_announcement() -> bool:
 
 @discord_bot.event
 async def on_ready():
-    print(f"[Discord] Online — {discord_bot.user}")
+    print(f"[Discord] Online — {discord_bot.user} (v{__version__})")
     print(f"  Glyphs: {len(_d_core().glyph_map)} | Lore: {len(_d_core().lore_contexts)}")
     # on_ready can fire again on a reconnect — announce only once per process.
     if not getattr(discord_bot, "_announced", False):
@@ -1856,7 +1862,7 @@ async def d_status(ctx: discord_commands.Context):
     core = _d_core()
     pdf_count = len(os.listdir(PDF_ANALYSIS_DIR)) if os.path.exists(PDF_ANALYSIS_DIR) else 0
     await ctx.send(
-        f"**Glyphic Cybermancy System (Discord)**\n"
+        f"**Glyphic Cybermancy System (Discord)** — v{__version__}\n"
         f"Glyphs: {len(core.glyph_map)} | Lore: {len(core.lore_contexts)} | "
         f"PDFs cached: {pdf_count}\n"
         f"Histories: {len(core.user_histories)} users | "
