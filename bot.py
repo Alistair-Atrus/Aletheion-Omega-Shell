@@ -1278,6 +1278,27 @@ async def send_announcement() -> bool:
         except Exception as e:
             print(f"[announce] Could not find channel {channel_id}: {e}")
             return False
+    if ANNOUNCE_ROLE_ID:
+        try:
+            role_id = int(ANNOUNCE_ROLE_ID)
+        except ValueError:
+            role_id = None
+            print(f"[announce] Bad ANNOUNCE_ROLE_ID: {ANNOUNCE_ROLE_ID!r} — must be a number.")
+        if role_id is not None:
+            guild = getattr(channel, "guild", None)
+            role = guild.get_role(role_id) if guild is not None else None
+            if role is None:
+                # Discord renders <@&id> as @unknown-role when the ID is
+                # not a role in this server — usually the wrong ID was
+                # copied (channel ID / user ID instead of role ID), or the
+                # role is in a different server. Say so in the console
+                # instead of silently sending a broken ping.
+                print(f"[announce] Role {ANNOUNCE_ROLE_ID} not found in server "
+                      f"'{getattr(guild, 'name', '?')}' — the ping will show as "
+                      f"@unknown-role. Check ANNOUNCE_ROLE_ID in .env: Server "
+                      f"Settings > Roles > right-click the role > Copy Role ID.")
+            else:
+                print(f"[announce] Pinging role '{role.name}' ({role_id}).")
     try:
         await channel.send(build_announce_message(),
                            allowed_mentions=discord.AllowedMentions(roles=True, users=True, everyone=False))
