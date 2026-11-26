@@ -26,6 +26,7 @@ import discord
 from discord.ext import commands as discord_commands
 
 import json, re, datetime, os, sys, asyncio, base64, hashlib
+import urllib.parse
 from typing import Optional, Dict, List, cast
 from dotenv import load_dotenv
 import aiohttp
@@ -98,6 +99,8 @@ GEMINI_API_URL = (
 # GEMINI_API_BASE is overridable for testing (points at a mock server).
 GEMINI_API_BASE    = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com").rstrip("/")
 GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image"
+# Pollinations base URL — overridable for testing (points at a mock server).
+POLLINATIONS_BASE   = os.getenv("POLLINATIONS_BASE", "https://image.pollinations.ai").rstrip("/")
 
 # Both platforms: byte limit (not char limit — glyphs are multi-byte UTF-8)
 HARD_LIMIT = 1900
@@ -1152,11 +1155,51 @@ class CybermancyCore:
             print(f"[Gemini image] Error: {e}")
             return None
 
-    async def generate_image(self, prompt: str, mode: str = "dream") -> Optional[bytes]:
-        if not STABILITY_HOST:
-            if GEMINI_API_KEY:
-                return await self._gemini_image(prompt, mode)
+    async def _pollinations_image(self, prompt: str, mode: str = "dream") -> Optional[bytes]:
+        """Generate an image via Pollinations (free, no API key, FLUX model).
+
+        Last fallback for ?dream / ?sigil: GET
+        https://image.pollinations.ai/prompt/{prompt}?width=512&height=512&model=flux&nologo=true
+        Returns PNG/JPEG bytes, or None if the service errors or returns
+        something that is not an image.
+        """
+        if mode == "sigil":
+            full = (f"mystical sigil, {prompt}, sacred geometry, esoteric symbol, "
+                    "monochrome white ink on black background, high contrast, vector art, no text")
+        else:
+            full = f"{prompt}, mystical, occult, sacred geometry, dreamlike, esoteric, glyphic, cosmic"
+        url = (f"{POLLINATIONS_BASE}/prompt/"
+               + urllib.parse.quote(full[:500])
+               + "?width=512&height=512&model=flux&nologo=true")
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=300)) as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        print(f"[Pollinations] {resp.status}: {(await resp.text())[:200]}")
+                        return None
+                    ctype = resp.headers.get("Content-Type", "")
+                    if "image" not in ctype:
+                        print(f"[Pollinations] Unexpected content type: {ctype}")
+                        return None
+                    data = await resp.read()
+                    return data or None
+        except Exception as e:
+            print(f"[Pollinations] Error: {e}")
             return None
+
+    async def generate_image(self, prompt: str, mode: str = "dream") -> Optional[bytes]:
+        # Chain: Stable Diffusion host first, then Gemini (if keyed), then
+        # Pollinations (free, no key). A provider that fails returns None
+        # and the next one is tried — e.g. Gemini's 403 for a project
+        # without free-tier access falls through to Pollinations.
+        if STABILITY_HOST:
+            pass  # fall through to the SD block below
+        else:
+            if GEMINI_API_KEY:
+                img = await self._gemini_image(prompt, mode)
+                if img:
+                    return img
+            return await self._pollinations_image(prompt, mode)
         if mode == "sigil":
             full = (f"mystical sigil, {prompt}, sacred geometry, esoteric symbol, "
                     f"(monochrome:1.3), (white ink on black background:1.2), high contrast, vector art")
@@ -1616,8 +1659,8 @@ async def d_scry(ctx: discord_commands.Context, *, prompt: str = ""):
 
 @discord_bot.command("dream")
 async def d_dream(ctx: discord_commands.Context, *, prompt: str = ""):
-    if not STABILITY_HOST and not GEMINI_API_KEY:
-        return await ctx.send("Image generation not configured — set STABILITY_HOST or GEMINI_API_KEY in .env.")
+    # Image backends: Stable Diffusion host, then Gemini (if keyed), then
+    # Pollinations (free, no key) — always available, so no config gate here.
     if not prompt:
         return await ctx.send("Provide a prompt.")
     async with ctx.typing():
@@ -1637,8 +1680,8 @@ async def d_dream(ctx: discord_commands.Context, *, prompt: str = ""):
 
 @discord_bot.command("sigil")
 async def d_sigil(ctx: discord_commands.Context, *, prompt: str = ""):
-    if not STABILITY_HOST and not GEMINI_API_KEY:
-        return await ctx.send("Image generation not configured — set STABILITY_HOST or GEMINI_API_KEY in .env.")
+    # Image backends: Stable Diffusion host, then Gemini (if keyed), then
+    # Pollinations (free, no key) — always available, so no config gate here.
     if not prompt:
         return await ctx.send("Provide a prompt.")
     async with ctx.typing():
@@ -1799,7 +1842,7 @@ async def d_status(ctx: discord_commands.Context):
         f"Local (AnythingLLM): {'✅ ' + ANYTHINGLLM_WORKSPACE if ANYTHINGLLM_API_KEY else '❌'} | "
         f"Claude: {'✅' if ANTHROPIC_API_KEY else '❌'} | "
         f"Gemini: {'✅' if GEMINI_API_KEY else '❌'} | "
-        f"Images: {'SD ✅' if STABILITY_HOST else 'Gemini ✅' if GEMINI_API_KEY else '—'}"
+        f"Images: {'SD ✅' if STABILITY_HOST else 'Gemini ✅' if GEMINI_API_KEY else 'Pollinations ✅ (free fallback)'}"
     )
 
 
