@@ -1,18 +1,28 @@
 # Changelog
 
 All notable changes to the Aletheion Ω-Shell Discord bot are recorded here.
-The bot has no version numbers — entries are grouped by date, newest first,
-with the commit hash for each change.
+The bot uses semantic versioning (MAJOR.MINOR.PATCH): PATCH for fixes,
+MINOR for new features, MAJOR for breaking changes to commands or
+behaviour. The version lives in `bot.py` (`__version__`) and is shown in
+`?status` and the startup log.
 
 This file was created 2026-11-26 and backfilled from the commit history;
-everything below the first entry is retroactive. It is updated with every
-change from here on.
+everything in 1.0.0 is retroactive. It is updated with every change from
+here on.
 
 ## Unreleased
 
 - Nothing yet.
 
-## 2026-11-26
+## [1.0.0] - 2026-11-26
+
+- **Version numbers introduced** — the bot is now v1.0.0. `__version__`
+  in `bot.py` is the single source of truth, shown in `?status` and the
+  startup log, and this changelog is grouped by version from here on.
+  Everything below in this release predates versioning and is backfilled
+  from the commit history.
+
+### 2026-11-26
 
 - **Collapse keys: validation rule** (`26949b1b`) — `?gk` now has a
   validation rule in both the bot's instruction and the AnythingLLM
@@ -105,7 +115,7 @@ change from here on.
   `` `glyph` (`phonetic-from-map`) ``; an angle-bracket token not in the
   map is dropped entirely.
 
-## 2026-11-25
+### 2026-11-25
 
 - **Tiers and Temple references removed** (`614ecb30`) — all tier gates,
   `?tier_add` / `?tier_remove`, `PATREON_TIER_*_IDS`, roles Tyro /
