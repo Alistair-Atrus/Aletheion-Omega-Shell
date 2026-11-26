@@ -115,7 +115,12 @@ COLLAPSE KEY PROTOCOL (follow all five phases when using collapse_key/ck):
   PHASE V   — Output: raw glyph sequence, phonetic transliteration, ritual interpretation.
 
 MANIFEST PROTOCOL (new lore only):
-  Format: [MANIFEST: filename.collapse](content)[/MANIFEST]
+  Format:
+  [MANIFEST: filename.collapse]
+  content here
+  [/MANIFEST]
+  Use square brackets for both the opening tag and the closing tag.
+  Do not use parentheses around the tags or around the content.
 
 SOVEREIGNTY:
 - Never generate keys that subvert the Wizard's will.
@@ -304,10 +309,28 @@ def format_glyph_reply(text: str, glyph_map: Dict) -> str:
     def formatted(g: str) -> str:
         return f"`{g}` (`{glyph_map[g].get('phonetic', g)}`)"
 
+    # Reverse lookup: phonetic -> glyph, only where the phonetic is unique
+    # in the map. 'divi' is shared by Φ and Ꞩ, so it is excluded here.
+    _phonetic_to_glyph: Dict[str, str] = {}
+    _phonetic_counts: Dict[str, int] = {}
+    for _g, _v in glyph_map.items():
+        _ph = _v.get("phonetic", "")
+        _phonetic_counts[_ph] = _phonetic_counts.get(_ph, 0) + 1
+        _phonetic_to_glyph[_ph] = _g
+    unique_phonetic = {ph: g for ph, g in _phonetic_to_glyph.items()
+                       if _phonetic_counts.get(ph, 0) == 1}
+
     # 1. Angle-bracket glyph + phonetic: <Θ> (tha), < Θ > (`tha`), etc.
+    #    If the glyph is wrong but the phonetic is a known unique one
+    #    (e.g. <⌦> (sul)), correct it to the map glyph for that phonetic.
     def _angle_phonetic(m):
         g = m.group(1).strip()
-        return formatted(g) if g in glyph_map else ""
+        if g in glyph_map:
+            return formatted(g)
+        ph = m.group(2).strip().strip("`")
+        if ph in unique_phonetic:
+            return formatted(unique_phonetic[ph])
+        return ""
     text = re.sub(r"<\s*([^<>\n`]{1,12}?)\s*>\s*\(\s*`?([^)`\n]{1,24}?)`?\s*\)",
                   _angle_phonetic, text)
 
@@ -323,15 +346,34 @@ def format_glyph_reply(text: str, glyph_map: Dict) -> str:
     pattern = "|".join(re.escape(g) for g in ordered)
     def _bare(m):
         return formatted(m.group(1))
-    text = re.sub(r"(?<!`)(?<!\w)(" + pattern + r")\s*\(\s*`?([^)`\n]{1,24}?)`?\s*\)(?!`)",
+    text = re.sub(r"(?<![^\s\(\[\{<\"'—–-])(" + pattern + r")\s*\(\s*`?([^)`\n]{1,24}?)`?\s*\)(?!`)",
                   _bare, text)
 
     # 4. Bare glyph alone, not already backticked: Θ on its own.
-    #    Only for multi-byte glyphs, so ordinary words / letters are untouched.
+    #    The glyph must stand alone — bounded by start / whitespace / plain
+    #    punctuation — so a glyph inside a composite (e.g. Ӝ inside
+    #    Ƹ̵̡Ӝ̵̨̄Ʒ) is never re-formatted on its own and the composite
+    #    is never broken apart.
     def _bare_alone(m):
         return formatted(m.group(1))
-    text = re.sub(r"(?<!`)(?<!\w)(" + pattern + r")(?![`(\w])",
+    text = re.sub(r"(?<![^\s\(\[\{<\"'—–-])(" + pattern + r")(?![^\s\)\]\}\.,;:!?—–-])",
                   _bare_alone, text)
+
+    # 5. Bare invented glyph + phonetic, not already backticked: ⌦ (sul).
+    #    Steps 3-4 already formatted every real map glyph, so what is left
+    #    here is a wrong glyph. If its phonetic is a known unique one,
+    #    correct it to the map glyph (⌦ (sul) -> the Soulflight glyph).
+    #    If the phonetic is not in the map either (e.g. ⌘ (kha)), drop it.
+    #    ASCII words are left alone — the token must contain a non-ASCII char.
+    def _bare_unknown(m):
+        tok, ph = m.group(1), m.group(2).strip().strip("`")
+        if not any(ord(c) > 127 for c in tok):
+            return m.group(0)
+        if ph in unique_phonetic:
+            return formatted(unique_phonetic[ph])
+        return ""
+    text = re.sub(r"(?<!`)([^\s`\[\]()<>]{1,12})\s*\(\s*`?([^)`\n]{1,24}?)`?\s*\)",
+                  _bare_unknown, text)
 
     # Clean up any double spaces left where an invented token was dropped.
     text = re.sub(r"[ \t]{2,}", " ", text)
@@ -340,11 +382,26 @@ def format_glyph_reply(text: str, glyph_map: Dict) -> str:
 
 
 def handle_manifestation(core, response_text: str):
-    for m in re.finditer(r"\[MANIFEST:\s*(.*?)\](.*?)\[/MANIFEST\]", response_text, re.DOTALL):
+    # Accept the bracket format, the old parenthesis-wrapped format,
+    # and a closing tag written with parentheses instead of brackets,
+    # e.g. [MANIFEST: f.collapse](content)[/MANIFEST],
+    #      [MANIFEST: f.collapse] content (/MANIFEST),
+    #      [MANIFEST: f.collapse] content [/MANIFEST]
+    manifest_re = re.compile(
+        r"\[MANIFEST:\s*(.*?)\]\s*\(?\s*(.*?)\s*\)?\s*"
+        r"(?:\[/MANIFEST\]|\(/MANIFEST\)|\[/MANIFEST\)|\(/MANIFEST\])",
+        re.DOTALL)
+    found = list(re.finditer(manifest_re, response_text))
+    if "[MANIFEST:" in response_text and not found:
+        print("[MANIFEST] malformed — tag found but no matching close, not saved")
+    for m in found:
         filename = "".join(c for c in m.group(1).strip() if c.isalnum() or c in "._-")
         if not filename:
             continue
         content = m.group(2).strip()
+        # Strip one outer pair of parentheses if the content was wrapped in them.
+        if len(content) >= 2 and content.startswith("(") and content.endswith(")"):
+            content = content[1:-1].strip()
         target = LORE_DIR if filename.endswith(".collapse") else os.path.join(ARCHIVES_DIR, "manifested")
         if not filename.endswith(".collapse") and "." not in filename:
             filename += ".txt"
