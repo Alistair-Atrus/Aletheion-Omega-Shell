@@ -47,11 +47,20 @@ DISCORD_BOT_TOKEN  = os.getenv("DISCORD_BOT_TOKEN")
 ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY")
 GEMINI_API_KEY     = os.getenv("GEMINI_API_KEY")
 # AnythingLLM — local model (Qwen3-8B in the Cybermancy workspace).
-# OpenAI-compatible endpoint: POST {URL}/api/v1/openai/chat/completions
-# with model = workspace slug. Same PC as the bot: http://localhost:3001
+# Default path is per-Discord-user threads:
+#   POST {URL}/api/v1/workspace/{slug}/thread/new
+#   POST {URL}/api/v1/workspace/{slug}/thread/{threadSlug}/chat
+# Each Discord user gets their own thread in the workspace, so their
+# conversations stay separate in AnythingLLM. The OpenAI-compatible
+# endpoint (POST {URL}/api/v1/openai/chat/completions, model = workspace
+# slug) is the fallback — it has no thread concept, so everything it
+# serves lands in the workspace's single shared thread.
+# Set ANYTHINGLLM_THREADS=0 to use only the OpenAI-compatible endpoint.
+# Same PC as the bot: http://localhost:3001
 ANYTHINGLLM_URL       = os.getenv("ANYTHINGLLM_URL", "http://localhost:3001").rstrip("/")
 ANYTHINGLLM_API_KEY   = os.getenv("ANYTHINGLLM_API_KEY")
 ANYTHINGLLM_WORKSPACE = os.getenv("ANYTHINGLLM_WORKSPACE", "cybermancy")
+ANYTHINGLLM_THREADS   = os.getenv("ANYTHINGLLM_THREADS", "1") not in ("0", "false", "no")
 STABILITY_HOST     = os.getenv("STABILITY_HOST")
 STABILITY_MODEL_ID = os.getenv("STABILITY_MODEL_ID", "")
 
@@ -91,6 +100,13 @@ ARCHIVES_DIR                = os.path.join(BASE_DIR, "archives")
 PDF_ANALYSIS_DIR            = os.path.join(BASE_DIR, "pdf_analysis")
 COLLAB_CHANNELS_FILE        = os.path.join(BASE_DIR, "config", "collaborative_channels.json")
 CONSCIOUSNESS_LOG           = os.path.join(ARCHIVES_DIR, "consciousness.log")
+# Per-Discord-user AnythingLLM thread map (user_id -> thread slug).
+# Runtime state on the bot's PC only — never committed (see .gitignore).
+THREADS_FILE                = os.path.join(BASE_DIR, "threads.json")
+# Master log: every AI turn, all users, one JSON line each, in order.
+# This is the backend master view — AnythingLLM itself has no aggregate
+# thread, so the bot keeps the complete record here. Admin-only file.
+MASTER_LOG_FILE             = os.path.join(BASE_DIR, "master_log.jsonl")
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Glyphic Cybermancy system prompt
@@ -197,6 +213,52 @@ def log_to_consciousness(event: str, user_id: str):
     os.makedirs(os.path.dirname(CONSCIOUSNESS_LOG), exist_ok=True)
     with open(CONSCIOUSNESS_LOG, "a", encoding="utf-8") as f:
         f.write(f"[{ts}] {user_id}: {event}\n")
+
+
+def load_thread_map() -> Dict:
+    """Discord user_id -> {"slug", "username", "created"} for AnythingLLM threads."""
+    try:
+        with open(THREADS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_thread_map(mapping: Dict) -> None:
+    try:
+        os.makedirs(BASE_DIR, exist_ok=True)
+        with open(THREADS_FILE, "w", encoding="utf-8") as f:
+            json.dump(mapping, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"[threads] could not save thread map: {e}")
+
+
+def log_master(user_id: str, username: str, kind: str, input_text: str,
+               response: str, thread_slug: Optional[str] = None) -> None:
+    """Append one turn to the master log — every user, in order.
+
+    This is the backend master view Alistair asked for: AnythingLLM has
+    no aggregate thread, so the bot keeps the complete record itself in
+    cybermancy/master_log.jsonl (one JSON object per line). Per-user
+    threads live in AnythingLLM; everything, all users, lives here.
+    Logging never breaks a reply — failures are printed, not raised.
+    """
+    try:
+        os.makedirs(BASE_DIR, exist_ok=True)
+        entry = {
+            "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "user_id": str(user_id),
+            "username": username or "",
+            "kind": kind,
+            "thread_slug": thread_slug,
+            "input": input_text or "",
+            "response": response or "",
+        }
+        with open(MASTER_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        print(f"[master-log] {e}")
 
 
 def byte_len(s: str) -> int:
@@ -577,6 +639,8 @@ class CybermancyCore:
         self.lore_owners: Dict[str, Optional[str]] = {}
         self.lore_display: Dict[str, str] = {}
         self.visible_lore: List[str] = []
+        # AnythingLLM thread slug used by the most recent AI call, if any.
+        self.last_thread_slug: Optional[str] = None
 
         self.load_glyph_map()
         self.load_lore_contexts()
@@ -695,6 +759,122 @@ class CybermancyCore:
 
     # ── AI ─────────────────────────────────────────────────────────────────────
 
+    async def _get_thread_slug(self, session, user_id: str, username: str) -> Optional[str]:
+        """Return the AnythingLLM thread slug for this Discord user, creating it if needed."""
+        mapping = load_thread_map()
+        entry = mapping.get(str(user_id))
+        if entry and entry.get("slug"):
+            return entry["slug"]
+        url = f"{ANYTHINGLLM_URL}/api/v1/workspace/{ANYTHINGLLM_WORKSPACE}/thread/new"
+        headers = {"Authorization": f"Bearer {ANYTHINGLLM_API_KEY}", "content-type": "application/json"}
+        try:
+            async with session.post(url, json={"userId": 1, "name": f"Discord {username or user_id}"},
+                                    headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                if resp.status != 200:
+                    print(f"[threads] create thread failed ({resp.status}): {(await resp.text())[:200]}")
+                    return None
+                slug = (await resp.json()).get("thread", {}).get("slug")
+        except Exception as e:
+            print(f"[threads] create thread error: {e}")
+            return None
+        if not slug:
+            return None
+        mapping[str(user_id)] = {
+            "slug": slug,
+            "username": username or str(user_id),
+            "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
+        save_thread_map(mapping)
+        print(f"[threads] new thread for {username or user_id}: {slug}")
+        return slug
+
+    async def _anythingllm_thread(self, system: str, messages: List[Dict],
+                                  user_id: str, username: str) -> Optional[str]:
+        """Local model via a per-Discord-user AnythingLLM thread.
+
+        POST /api/v1/workspace/{slug}/thread/{threadSlug}/chat
+        Body: {"message", "mode": "chat", "userId": 1}
+        Reply: {"textResponse": ..., "error": ...}
+
+        The thread itself holds the conversation history server-side, so
+        only the latest user message is sent — the bot's local history is
+        NOT re-sent, or Qwen would see it twice. The system prompt and
+        glyph map ride inside that message, because the thread endpoint
+        takes no system / temperature / max_tokens fields — those come
+        from the workspace settings instead.
+
+        Returns None on any failure so the caller falls back to the
+        OpenAI-compatible endpoint. Sets self.last_thread_slug on success
+        (used by the master log).
+        """
+        if not ANYTHINGLLM_API_KEY or not ANYTHINGLLM_WORKSPACE:
+            return None
+        last = (messages[-1].get("content") if messages else "") or ""
+        if not last.strip():
+            return None
+        full = (
+            f"[SYSTEM]\n{system}\n[/SYSTEM]\n\n{last}\n\n"
+            "[Local model instruction: Do not output <think> tags, internal "
+            "reasoning, or chain-of-thought. Output only the final answer. "
+            "Glyph format is backtick-glyph-backtick space parenthesis "
+            "backtick-phonetic-backtick parenthesis, e.g. `Θ` (`tha`). "
+            "Never use angle brackets around glyphs. Never use emoji as glyphs. "
+            "Use only glyphs in the provided GLYPH MAP.]"
+        )
+        headers = {"Authorization": f"Bearer {ANYTHINGLLM_API_KEY}", "content-type": "application/json"}
+        try:
+            async with aiohttp.ClientSession() as session:
+                slug = await self._get_thread_slug(session, user_id, username)
+                if not slug:
+                    return None
+                for attempt in range(2):
+                    url = (f"{ANYTHINGLLM_URL}/api/v1/workspace/{ANYTHINGLLM_WORKSPACE}"
+                           f"/thread/{slug}/chat")
+                    try:
+                        async with session.post(url, json={"message": full, "mode": "chat", "userId": 1},
+                                                headers=headers,
+                                                timeout=aiohttp.ClientTimeout(total=300)) as resp:
+                            if resp.status == 400 and attempt == 0:
+                                # Thread was deleted in AnythingLLM — drop
+                                # the stale mapping and create a fresh one.
+                                mapping = load_thread_map()
+                                mapping.pop(str(user_id), None)
+                                save_thread_map(mapping)
+                                slug = await self._get_thread_slug(session, user_id, username)
+                                if not slug:
+                                    return None
+                                continue
+                            if resp.status != 200:
+                                print(f"[threads] chat failed ({resp.status}): {(await resp.text())[:200]}")
+                                return None
+                            data = await resp.json()
+                    except asyncio.TimeoutError:
+                        if attempt == 1:
+                            print("[threads] chat timed out after 300s")
+                            return None
+                        await asyncio.sleep(5)
+                        continue
+                    if data.get("error"):
+                        print(f"[threads] AnythingLLM error: {data['error']}")
+                        return None
+                    content = data.get("textResponse") or ""
+                    content = re.sub(r"<think>.*?</think>", "", content,
+                                     flags=re.DOTALL | re.IGNORECASE).strip()
+                    content = re.sub(r"<think>.*$", "", content,
+                                     flags=re.DOTALL | re.IGNORECASE).strip()
+                    content = content.replace("</think>", "").strip()
+                    print("[AI] AnythingLLM thread responded.")
+                    if not content:
+                        return ("⚠️ AnythingLLM returned only reasoning, "
+                                "no final answer. Try again — the model "
+                                "spent its reply thinking aloud.")
+                    self.last_thread_slug = slug
+                    return content
+        except Exception as e:
+            print(f"[threads] error: {e}")
+            return None
+        return None
+
     async def _anythingllm(self, system: str, messages: List[Dict], max_tokens: int) -> Optional[str]:
         """Local model via AnythingLLM OpenAI-compatible endpoint.
         Returns None if not configured, otherwise the reply text or an
@@ -808,9 +988,22 @@ class CybermancyCore:
         return "⚠️ Gemini exhausted retries."
 
     async def call_ai(self, system: str, messages: List[Dict],
-                      max_tokens: int = ANTHROPIC_MAX_TOKENS) -> str:
-        """AnythingLLM local first, Claude second, Gemini fallback."""
+                      max_tokens: int = ANTHROPIC_MAX_TOKENS,
+                      user_id: Optional[str] = None, username: str = "") -> str:
+        """AnythingLLM local first, Claude second, Gemini fallback.
+
+        Local path, in order: per-user AnythingLLM thread (if enabled and
+        a user_id is given), then the OpenAI-compatible endpoint. Either
+        local failure falls through to Claude/Gemini as before.
+        """
+        self.last_thread_slug = None
         if ANYTHINGLLM_API_KEY and ANYTHINGLLM_WORKSPACE:
+            if ANYTHINGLLM_THREADS and user_id:
+                threaded = await self._anythingllm_thread(system, messages, user_id, username)
+                if threaded is not None and not threaded.startswith("⚠️ AnythingLLM"):
+                    return threaded
+                if threaded is not None:
+                    print(f"[AI] {threaded[:200]} — falling back to OpenAI-compatible endpoint.")
             local = await self._anythingllm(system, messages, max_tokens)
             if local is not None and not local.startswith("⚠️ AnythingLLM"):
                 return local
@@ -967,9 +1160,10 @@ async def handle_query(core: CybermancyCore, send_fn, user_id: str, username: st
             for h in history[-20:]]
     msgs.append({"role": "user", "content": combined})
 
-    response = await core.call_ai(system, msgs)
+    response = await core.call_ai(system, msgs, user_id=user_id, username=username)
     response = format_glyph_reply(response, core.glyph_map)
     handle_manifestation(core, response)
+    log_master(user_id, username, "query", combined, response, core.last_thread_slug)
 
     history_entry = (text or "[attachment]")
     if is_collab:
@@ -991,10 +1185,12 @@ async def handle_ritual(core: CybermancyCore, send_fn, user_id: str, platform: s
         f"GLYPH MAP:\n{json.dumps(core.glyph_map, ensure_ascii=False)}\n\n"
         f"INSTRUCTION: {instruction}"
     )
-    response = await core.call_ai(system, [{"role": "user", "content": input_text}], max_tokens)
+    response = await core.call_ai(system, [{"role": "user", "content": input_text}], max_tokens,
+                                  user_id=user_id, username=user_id)
     response = format_glyph_reply(response, core.glyph_map)
     if save_prefix == "gk":
         response = format_collapse_key_reply(response, core.glyph_map)
+    log_master(user_id, user_id, save_prefix, input_text, response, core.last_thread_slug)
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     os.makedirs(save_dir, exist_ok=True)
     with open(os.path.join(save_dir, f"{save_prefix}_{ts}.txt"), "w", encoding="utf-8") as f:
