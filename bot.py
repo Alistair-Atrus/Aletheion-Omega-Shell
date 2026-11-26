@@ -94,6 +94,11 @@ GEMINI_API_URL = (
 )
 # Pollinations base URL — overridable for testing (points at a mock server).
 POLLINATIONS_BASE   = os.getenv("POLLINATIONS_BASE", "https://image.pollinations.ai").rstrip("/")
+# Pollinations API key (free account at https://auth.pollinations.ai).
+# Without it images still generate, but are watermarked — nologo=true is
+# ignored for anonymous requests. With the key, nologo works and the
+# watermark is gone, and the rate limit rises to 1 request / 5s.
+POLLINATIONS_API_KEY = os.getenv("POLLINATIONS_API_KEY", "")
 
 # Both platforms: byte limit (not char limit — glyphs are multi-byte UTF-8)
 HARD_LIMIT = 1900
@@ -1159,9 +1164,13 @@ class CybermancyCore:
         url = (f"{POLLINATIONS_BASE}/prompt/"
                + urllib.parse.quote(full[:500])
                + "?width=512&height=512&model=flux&nologo=true")
+        # Bearer token auth: without a key the request still works, but
+        # Pollinations ignores nologo and watermarks the image.
+        headers = ({"Authorization": f"Bearer {POLLINATIONS_API_KEY}"}
+                   if POLLINATIONS_API_KEY else {})
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=300)) as session:
-                async with session.get(url) as resp:
+                async with session.get(url, headers=headers) as resp:
                     if resp.status != 200:
                         print(f"[Pollinations] {resp.status}: {(await resp.text())[:200]}")
                         return None
@@ -1790,7 +1799,7 @@ async def d_status(ctx: discord_commands.Context):
         f"Local (AnythingLLM): {'✅ ' + ANYTHINGLLM_WORKSPACE if ANYTHINGLLM_API_KEY else '❌'} | "
         f"Claude: {'✅' if ANTHROPIC_API_KEY else '❌'} | "
         f"Gemini: {'✅' if GEMINI_API_KEY else '❌'} | "
-        f"Images: Pollinations ✅ (free)"
+        f"Images: Pollinations ✅ (free, {'no watermark' if POLLINATIONS_API_KEY else 'watermarked — set POLLINATIONS_API_KEY'})"
     )
 
 
