@@ -913,9 +913,12 @@ class CybermancyCore:
                         async with session.post(url, json={"message": full, "mode": "chat", "userId": 1},
                                                 headers=headers,
                                                 timeout=aiohttp.ClientTimeout(total=300)) as resp:
-                            if resp.status == 400 and attempt == 0:
+                            if resp.status in (400, 404) and attempt == 0:
                                 # Thread was deleted in AnythingLLM — drop
                                 # the stale mapping and create a fresh one.
+                                # AnythingLLM answers a missing thread with
+                                # 404 ("Thread ... not found"), not 400, so
+                                # both must trigger the recreate-and-retry.
                                 # A fresh thread needs the full system again.
                                 mapping = load_thread_map()
                                 mapping.pop(str(user_id), None)
