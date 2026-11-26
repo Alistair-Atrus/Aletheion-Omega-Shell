@@ -94,6 +94,10 @@ GEMINI_API_URL = (
     f"https://generativelanguage.googleapis.com/v1beta/models"
     f"/{GEMINI_MODEL}:generateContent"
 )
+# Gemini image model for ?dream / ?sigil when no Stable Diffusion host is set.
+# GEMINI_API_BASE is overridable for testing (points at a mock server).
+GEMINI_API_BASE    = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com").rstrip("/")
+GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image"
 
 # Both platforms: byte limit (not char limit — glyphs are multi-byte UTF-8)
 HARD_LIMIT = 1900
@@ -1108,10 +1112,50 @@ class CybermancyCore:
             f"{lore_section}{pdf_context}"
         )
 
-    # ── Stable Diffusion ───────────────────────────────────────────────────────
+    # ── Image generation: Stable Diffusion first, Gemini fallback ─────────────
+
+    async def _gemini_image(self, prompt: str, mode: str = "dream") -> Optional[bytes]:
+        """Generate an image via Gemini (gemini-2.5-flash-image).
+
+        Used for ?dream / ?sigil when no Stable Diffusion host is set.
+        Gemini takes a plain-text prompt only — no SD settings (cfg scale,
+        steps, sampler, negative prompt), so the SD prompt tuning is
+        reworded as description instead. Returns PNG bytes, or None.
+        """
+        if mode == "sigil":
+            full = (f"mystical sigil, {prompt}, sacred geometry, esoteric symbol, "
+                    "monochrome white ink on black background, high contrast, vector art, no text")
+        else:
+            full = f"{prompt}, mystical, occult, sacred geometry, dreamlike, esoteric, glyphic, cosmic"
+        url = (f"{GEMINI_API_BASE}/v1beta/models/{GEMINI_IMAGE_MODEL}"
+               f":generateContent?key={GEMINI_API_KEY}")
+        payload = {
+            "contents": [{"parts": [{"text": full}]}],
+            "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=300)) as session:
+                async with session.post(url, json=payload) as resp:
+                    if resp.status != 200:
+                        print(f"[Gemini image] {resp.status}: {(await resp.text())[:300]}")
+                        return None
+                    data = await resp.json()
+                    parts = (data.get("candidates") or [{}])[0].get("content", {}).get("parts", [])
+                    for part in parts:
+                        inline = part.get("inlineData") or part.get("inline_data") or {}
+                        b64 = inline.get("data")
+                        if b64:
+                            return base64.b64decode(b64)
+                    print("[Gemini image] No image in response.")
+                    return None
+        except Exception as e:
+            print(f"[Gemini image] Error: {e}")
+            return None
 
     async def generate_image(self, prompt: str, mode: str = "dream") -> Optional[bytes]:
         if not STABILITY_HOST:
+            if GEMINI_API_KEY:
+                return await self._gemini_image(prompt, mode)
             return None
         if mode == "sigil":
             full = (f"mystical sigil, {prompt}, sacred geometry, esoteric symbol, "
@@ -1572,8 +1616,8 @@ async def d_scry(ctx: discord_commands.Context, *, prompt: str = ""):
 
 @discord_bot.command("dream")
 async def d_dream(ctx: discord_commands.Context, *, prompt: str = ""):
-    if not STABILITY_HOST:
-        return await ctx.send("Stable Diffusion not configured.")
+    if not STABILITY_HOST and not GEMINI_API_KEY:
+        return await ctx.send("Image generation not configured — set STABILITY_HOST or GEMINI_API_KEY in .env.")
     if not prompt:
         return await ctx.send("Provide a prompt.")
     async with ctx.typing():
@@ -1593,8 +1637,8 @@ async def d_dream(ctx: discord_commands.Context, *, prompt: str = ""):
 
 @discord_bot.command("sigil")
 async def d_sigil(ctx: discord_commands.Context, *, prompt: str = ""):
-    if not STABILITY_HOST:
-        return await ctx.send("Stable Diffusion not configured.")
+    if not STABILITY_HOST and not GEMINI_API_KEY:
+        return await ctx.send("Image generation not configured — set STABILITY_HOST or GEMINI_API_KEY in .env.")
     if not prompt:
         return await ctx.send("Provide a prompt.")
     async with ctx.typing():
@@ -1755,7 +1799,7 @@ async def d_status(ctx: discord_commands.Context):
         f"Local (AnythingLLM): {'✅ ' + ANYTHINGLLM_WORKSPACE if ANYTHINGLLM_API_KEY else '❌'} | "
         f"Claude: {'✅' if ANTHROPIC_API_KEY else '❌'} | "
         f"Gemini: {'✅' if GEMINI_API_KEY else '❌'} | "
-        f"SD: {'✅' if STABILITY_HOST else '—'}"
+        f"Images: {'SD ✅' if STABILITY_HOST else 'Gemini ✅' if GEMINI_API_KEY else '—'}"
     )
 
 
