@@ -46,7 +46,9 @@ Keys the bot generates are saved to `cybermancy/collapse_keys/` on the host, so 
 - `?dream <prompt>` — generates a dreamlike image from a prompt
 - `?sigil <prompt>` — generates a monochrome sigil (white ink on black, sacred geometry)
 
-Images are generated with **Cloudflare Workers AI** (FLUX.1-schnell), free — 10,000 Neurons a day, about 173 images a day, no watermark, and a fresh generation every time. It needs a Cloudflare account ID and API token; see step 6 below.
+Images are generated with **Cloudflare Workers AI** (FLUX.1-schnell), free — no watermark, and a fresh generation every time. It needs a Cloudflare account ID and API token; see step 6 below.
+
+**Daily limit:** a free Cloudflare account gets **10,000 Neurons a day**, which covers about **173 images a day** (one 1024×1024 image at 4 steps costs ~57.6 Neurons). The allowance resets daily at **00:00 UTC**; once it's used up, image requests fail until the next reset — the bot will say the image failed, and `?dream` / `?sigil` work again the next day.
 
 ### Lore
 
@@ -175,7 +177,7 @@ The bot uses AnythingLLM's native thread API for per-user threads (see above), f
 
 ### 6. Images — Cloudflare Workers AI (free)
 
-`?dream` and `?sigil` use **Cloudflare Workers AI** (FLUX.1-schnell). A free Cloudflare account gets 10,000 Neurons a day — about 173 images a day — with no watermark and no credit card.
+`?dream` and `?sigil` use **Cloudflare Workers AI** (FLUX.1-schnell). A free Cloudflare account gets 10,000 Neurons a day — about 173 images a day — with no watermark and no credit card. The allowance resets daily at 00:00 UTC, and once it's used up, image requests fail until the next reset.
 
 1. Sign up or log in at [dash.cloudflare.com](https://dash.cloudflare.com).
 2. In the left sidebar, open **AI → Workers AI**, click **Use REST API**, then **Create a Workers AI API Token**.
