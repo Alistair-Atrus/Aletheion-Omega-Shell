@@ -66,6 +66,22 @@ STABILITY_MODEL_ID = os.getenv("STABILITY_MODEL_ID", "")
 
 ADMIN_USER_IDS = [x.strip() for x in os.getenv("BOT_ADMIN_IDS", "").split(",") if x.strip()]
 
+# Startup announcement — the bot posts a wake-up message when it comes
+# online, pinging a role users can join to be notified. Set these in .env
+# after creating the role in Discord (Server Settings > Roles) and
+# copying the channel ID (right-click the channel > Copy Channel ID,
+# Developer Mode on) and role ID (right-click the role > Copy Role ID).
+# Role mentions only ping if the role is mentionable: in the role's
+# settings, turn on "Allow anyone to @mention this role".
+# Leave ANNOUNCE_CHANNEL_ID blank to disable the announcement.
+ANNOUNCE_CHANNEL_ID = os.getenv("ANNOUNCE_CHANNEL_ID", "").strip()
+ANNOUNCE_ROLE_ID    = os.getenv("ANNOUNCE_ROLE_ID", "").strip()
+ANNOUNCE_MESSAGE    = os.getenv(
+    "ANNOUNCE_MESSAGE",
+    "⟐ Aletheion Ω-Shell is awake. The Glyphic Cybermancy System is online — "
+    "invoke `?query`, `?gk`, or `?help` to begin.",
+).strip()
+
 DEFAULT_PREFIX    = "?"
 MAX_HISTORY_TURNS = 50
 
@@ -619,6 +635,7 @@ def help_pages(p: str) -> tuple:
         f"`{p}list_collab` — List collaborative channels\n"
         f"`{p}reload` — Reload glyphs and lore\n"
         f"`{p}status` — Bot status\n"
+        f"`{p}announce` — Send the wake-up announcement now\n"
         f"`{p}shutdown` — Shut down bot\n\n"
         f"All commands are open to everyone in the server. Admin commands only are restricted to bot admins."
     )
@@ -1238,10 +1255,47 @@ class _DAttWrapper:
 
 # ── Discord events ─────────────────────────────────────────────────────────────
 
+def build_announce_message() -> str:
+    """Wake-up message, with the role ping first so members get notified."""
+    ping = f"<@&{ANNOUNCE_ROLE_ID}> " if ANNOUNCE_ROLE_ID else ""
+    return f"{ping}{ANNOUNCE_MESSAGE}"
+
+
+async def send_announcement() -> bool:
+    """Post the wake-up announcement to the configured channel. True if sent."""
+    if not ANNOUNCE_CHANNEL_ID:
+        print("[announce] No ANNOUNCE_CHANNEL_ID set — skipping announcement.")
+        return False
+    try:
+        channel_id = int(ANNOUNCE_CHANNEL_ID)
+    except ValueError:
+        print(f"[announce] Bad ANNOUNCE_CHANNEL_ID: {ANNOUNCE_CHANNEL_ID!r} — must be a number.")
+        return False
+    channel = discord_bot.get_channel(channel_id)
+    if channel is None:
+        try:
+            channel = await discord_bot.fetch_channel(channel_id)
+        except Exception as e:
+            print(f"[announce] Could not find channel {channel_id}: {e}")
+            return False
+    try:
+        await channel.send(build_announce_message(),
+                           allowed_mentions=discord.AllowedMentions(roles=True, users=True, everyone=False))
+        print(f"[announce] Wake-up message sent to #{getattr(channel, 'name', channel_id)}.")
+        return True
+    except Exception as e:
+        print(f"[announce] Could not send to channel {channel_id}: {e}")
+        return False
+
+
 @discord_bot.event
 async def on_ready():
     print(f"[Discord] Online — {discord_bot.user}")
     print(f"  Glyphs: {len(_d_core().glyph_map)} | Lore: {len(_d_core().lore_contexts)}")
+    # on_ready can fire again on a reconnect — announce only once per process.
+    if not getattr(discord_bot, "_announced", False):
+        discord_bot._announced = True
+        await send_announcement()
 
 
 @discord_bot.event
@@ -1682,6 +1736,15 @@ async def d_status(ctx: discord_commands.Context):
         f"Gemini: {'✅' if GEMINI_API_KEY else '❌'} | "
         f"SD: {'✅' if STABILITY_HOST else '—'}"
     )
+
+
+@discord_bot.command("announce")
+async def d_announce(ctx: discord_commands.Context):
+    if not _d_admin(ctx):
+        return await ctx.send("Admin only.")
+    ok = await send_announcement()
+    await ctx.send("✅ Announcement sent." if ok
+                   else "⚠️ Announcement not sent — check ANNOUNCE_CHANNEL_ID in .env (see console).")
 
 
 @discord_bot.command("shutdown")
