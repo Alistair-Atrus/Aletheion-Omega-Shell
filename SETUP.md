@@ -68,8 +68,9 @@ ANYTHINGLLM_API_KEY=
 ANYTHINGLLM_WORKSPACE=cybermancy
 ```
 
-- `BOT_ADMIN_IDS`: your Discord user ID (Discord Settings → Advanced → Developer Mode on, right-click your name → Copy User ID).
+- `BOT_ADMIN_IDS`: your Discord user ID (Discord Settings → Advanced → Developer Mode on, right-click your name → Copy User ID). Comma-separated for several admins, same line.
 - `ANYTHINGLLM_API_KEY`: AnythingLLM → Settings → Developer API → Copy API Key. Put it straight in `.env`, never in chat — that key can read, change and delete every workspace on the instance.
+- Startup announcement (optional): create a role in Discord (Server Settings → Roles), turn on "Allow anyone to @mention this role" in its settings, then set `ANNOUNCE_CHANNEL_ID` (right-click the channel → Copy Channel ID) and `ANNOUNCE_ROLE_ID` (right-click the role → Copy Role ID) in `.env`. The bot posts its wake-up message to that channel, pinging the role, once each time it comes online. Test it any time with `?announce` (admin only). Leave `ANNOUNCE_CHANNEL_ID` blank to disable it.
 - Cloud fallback (optional, leave blank for local-only): `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`.
 
 ## 4. AnythingLLM (local AI)
