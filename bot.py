@@ -408,6 +408,40 @@ def format_glyph_reply(text: str, glyph_map: Dict) -> str:
     unique_phonetic = {ph: g for ph, g in _phonetic_to_glyph.items()
                        if _phonetic_counts.get(ph, 0) == 1}
 
+    # 0. Backticked glyph + phonetic: `⌦` (`reso`), `Θ` (`wrong`), etc.
+    #    Backticks mean the format is right, not that the glyph is — Qwen
+    #    prints wrong glyphs in correct format (e.g. ⌦ for reso, ⌺ for
+    #    klar). So validate the pair: a glyph in the map is kept with its
+    #    map phonetic (fixing a wrong phonetic); a glyph NOT in the map
+    #    is corrected via its phonetic if that phonetic is a known unique
+    #    one; otherwise the invented token is dropped, as in step 5.
+    def _backticked_phonetic(m):
+        g = m.group(1).strip()
+        ph = m.group(2).strip().strip("`")
+        if g in glyph_map:
+            return formatted(g)
+        if ph in unique_phonetic:
+            return formatted(unique_phonetic[ph])
+        return ""
+    text = re.sub(r"`([^`\n]{1,12})`\s*\(\s*`?([^)`\n]{1,24}?)`?\s*\)",
+                  _backticked_phonetic, text)
+
+    # 0b. Backticked glyph alone: `⌦` on its own. A map glyph is kept;
+    #     a non-ASCII token that is not in the map is an invented glyph
+    #     with no phonetic to correct it from, so drop it. ASCII backticked
+    #     words (code, commands) are left alone.
+    def _backticked_alone(m):
+        g = m.group(1).strip()
+        if g in glyph_map:
+            return formatted(g)
+        if not any(ord(c) > 127 for c in g):
+            return m.group(0)
+        return ""
+    # The (?!...) keeps this from re-processing the glyph half of a pair
+    # step 0 already fixed — without it `Θ` (`tha`) would become
+    # `Θ` (`tha`) (`tha`).
+    text = re.sub(r"`([^`\n]{1,12})`(?!\s*\()", _backticked_alone, text)
+
     # 1. Angle-bracket glyph + phonetic: <Θ> (tha), < Θ > (`tha`), etc.
     #    If the glyph is wrong but the phonetic is a known unique one
     #    (e.g. <⌦> (sul)), correct it to the map glyph for that phonetic.
