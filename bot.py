@@ -783,12 +783,12 @@ class CybermancyCore:
 
     # ── AI ─────────────────────────────────────────────────────────────────────
 
-    async def _get_thread_slug(self, session, user_id: str, username: str) -> Optional[str]:
-        """Return the AnythingLLM thread slug for this Discord user, creating it if needed."""
+    async def _get_thread_slug(self, session, user_id: str, username: str) -> tuple:
+        """Return (thread slug, is_new) for this Discord user, creating it if needed."""
         mapping = load_thread_map()
         entry = mapping.get(str(user_id))
         if entry and entry.get("slug"):
-            return entry["slug"]
+            return entry["slug"], False
         url = f"{ANYTHINGLLM_URL}/api/v1/workspace/{ANYTHINGLLM_WORKSPACE}/thread/new"
         headers = {"Authorization": f"Bearer {ANYTHINGLLM_API_KEY}", "content-type": "application/json"}
         try:
@@ -796,21 +796,22 @@ class CybermancyCore:
                                     headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 if resp.status != 200:
                     print(f"[threads] create thread failed ({resp.status}): {(await resp.text())[:200]}")
-                    return None
+                    return None, False
                 slug = (await resp.json()).get("thread", {}).get("slug")
         except Exception as e:
             print(f"[threads] create thread error: {e}")
-            return None
+            return None, False
         if not slug:
-            return None
+            return None, False
         mapping[str(user_id)] = {
             "slug": slug,
             "username": username or str(user_id),
             "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "messages": 0,
         }
         save_thread_map(mapping)
         print(f"[threads] new thread for {username or user_id}: {slug}")
-        return slug
+        return slug, True
 
     async def _anythingllm_thread(self, system: str, messages: List[Dict],
                                   user_id: str, username: str) -> Optional[str]:
@@ -822,10 +823,16 @@ class CybermancyCore:
 
         The thread itself holds the conversation history server-side, so
         only the latest user message is sent — the bot's local history is
-        NOT re-sent, or Qwen would see it twice. The system prompt and
-        glyph map ride inside that message, because the thread endpoint
-        takes no system / temperature / max_tokens fields — those come
-        from the workspace settings instead.
+        NOT re-sent, or Qwen would see it twice. The thread endpoint
+        takes no system / temperature / max_tokens fields, so the full
+        system prompt and glyph map are sent only on the FIRST message
+        in a thread (and every 10th after that, in case AnythingLLM has
+        dropped the early history). On all other turns only the user's
+        message is sent — plus, for rituals, just the per-command
+        instruction extracted from the system, without the glyph map.
+        The workspace system prompt already carries the rules, and the
+        bot's glyph formatter corrects the format afterwards, so the
+        repeated 14 KB system block is unnecessary.
 
         Returns None on any failure so the caller falls back to the
         OpenAI-compatible endpoint. Sets self.last_thread_slug on success
@@ -836,21 +843,37 @@ class CybermancyCore:
         last = (messages[-1].get("content") if messages else "") or ""
         if not last.strip():
             return None
-        full = (
-            f"[SYSTEM]\n{system}\n[/SYSTEM]\n\n{last}\n\n"
-            "[Local model instruction: Do not output <think> tags, internal "
-            "reasoning, or chain-of-thought. Output only the final answer. "
-            "Glyph format is backtick-glyph-backtick space parenthesis "
-            "backtick-phonetic-backtick parenthesis, e.g. `Θ` (`tha`). "
-            "Never use angle brackets around glyphs. Never use emoji as glyphs. "
-            "Use only glyphs in the provided GLYPH MAP.]"
-        )
         headers = {"Authorization": f"Bearer {ANYTHINGLLM_API_KEY}", "content-type": "application/json"}
         try:
             async with aiohttp.ClientSession() as session:
-                slug = await self._get_thread_slug(session, user_id, username)
+                slug, is_new = await self._get_thread_slug(session, user_id, username)
                 if not slug:
                     return None
+                # Count messages in this thread; re-send the full system
+                # every 10th message (1st, 11th, 21st, ...) as a refresher.
+                mapping = load_thread_map()
+                entry = mapping.get(str(user_id), {})
+                count = int(entry.get("messages", 0)) + 1
+                entry["messages"] = count
+                mapping[str(user_id)] = entry
+                save_thread_map(mapping)
+                if is_new or (count - 1) % 10 == 0:
+                    full = (
+                        f"[SYSTEM]\n{system}\n[/SYSTEM]\n\n{last}\n\n"
+                        "[Local model instruction: Do not output <think> tags, internal "
+                        "reasoning, or chain-of-thought. Output only the final answer. "
+                        "Glyph format is backtick-glyph-backtick space parenthesis "
+                        "backtick-phonetic-backtick parenthesis, e.g. `Θ` (`tha`). "
+                        "Never use angle brackets around glyphs. Never use emoji as glyphs. "
+                        "Use only glyphs in the provided GLYPH MAP.]"
+                    )
+                else:
+                    # Rituals carry their instruction in the system as
+                    # "INSTRUCTION: ..." — send just that, not the map.
+                    m = re.search(r"INSTRUCTION: (.+)", system, re.DOTALL)
+                    instruction = m.group(1).strip() if m else ""
+                    full = (f"[INSTRUCTION]\n{instruction}\n[/INSTRUCTION]\n\n{last}"
+                            if instruction else last)
                 for attempt in range(2):
                     url = (f"{ANYTHINGLLM_URL}/api/v1/workspace/{ANYTHINGLLM_WORKSPACE}"
                            f"/thread/{slug}/chat")
@@ -861,12 +884,22 @@ class CybermancyCore:
                             if resp.status == 400 and attempt == 0:
                                 # Thread was deleted in AnythingLLM — drop
                                 # the stale mapping and create a fresh one.
+                                # A fresh thread needs the full system again.
                                 mapping = load_thread_map()
                                 mapping.pop(str(user_id), None)
                                 save_thread_map(mapping)
-                                slug = await self._get_thread_slug(session, user_id, username)
+                                slug, _is_new = await self._get_thread_slug(session, user_id, username)
                                 if not slug:
                                     return None
+                                full = (
+                                    f"[SYSTEM]\n{system}\n[/SYSTEM]\n\n{last}\n\n"
+                                    "[Local model instruction: Do not output <think> tags, internal "
+                                    "reasoning, or chain-of-thought. Output only the final answer. "
+                                    "Glyph format is backtick-glyph-backtick space parenthesis "
+                                    "backtick-phonetic-backtick parenthesis, e.g. `Θ` (`tha`). "
+                                    "Never use angle brackets around glyphs. Never use emoji as glyphs. "
+                                    "Use only glyphs in the provided GLYPH MAP.]"
+                                )
                                 continue
                             if resp.status != 200:
                                 print(f"[threads] chat failed ({resp.status}): {(await resp.text())[:200]}")
