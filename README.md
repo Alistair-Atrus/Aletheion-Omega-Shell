@@ -46,7 +46,7 @@ Keys the bot generates are saved to `cybermancy/collapse_keys/` on the host, so 
 - `?dream <prompt>` — generates a dreamlike image from a prompt
 - `?sigil <prompt>` — generates a monochrome sigil (white ink on black, sacred geometry)
 
-Images are generated with **Pollinations** (FLUX model), free and with no key required — but without a key the images carry a small `pollinations.ai` watermark. A free Pollinations account token removes it; see step 6 below.
+Images are generated with **Cloudflare Workers AI** (FLUX.1-schnell), free — 10,000 Neurons a day, about 173 images a day, no watermark, and a fresh generation every time. It needs a Cloudflare account ID and API token; see step 6 below.
 
 ### Lore
 
@@ -173,17 +173,22 @@ This is what makes the AI commands (`?query`, `?gk`, `?scry`, and the rest) work
 
 The bot uses AnythingLLM's native thread API for per-user threads (see above), falling back to the OpenAI-compatible endpoint if threads are disabled or fail, then to Claude and Gemini if those keys are set.
 
-### 6. Images — Pollinations (optional)
+### 6. Images — Cloudflare Workers AI (free)
 
-`?dream` and `?sigil` use **Pollinations** (FLUX model). No setup is needed for them to work — but without an account, images carry a small `pollinations.ai` watermark.
+`?dream` and `?sigil` use **Cloudflare Workers AI** (FLUX.1-schnell). A free Cloudflare account gets 10,000 Neurons a day — about 173 images a day — with no watermark and no credit card.
 
-For clean images, create a free Pollinations account at [enter.pollinations.ai](https://enter.pollinations.ai), go to the Keys page, create a key, and put it in `.env` as:
+1. Sign up or log in at [dash.cloudflare.com](https://dash.cloudflare.com).
+2. In the left sidebar, open **AI → Workers AI**, click **Use REST API**, then **Create a Workers AI API Token**.
+3. Copy your **Account ID** (shown on the same page) and the token, and put them in `.env` as:
 
 ```
-POLLINATIONS_API_KEY=
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_API_TOKEN=
 ```
 
-Paste it yourself — never in chat, and never in code.
+Paste them yourself — never in chat, and never in code. Without them, `?dream` and `?sigil` report that image generation is not configured.
+
+Why not Nano Banana? Google's Gemini API has no free tier for image generation — every Nano Banana model bills per image. Cloudflare is the free route that still gives a fresh, unwatermarked image every time.
 
 ### 7. Run it
 
