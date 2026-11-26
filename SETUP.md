@@ -11,7 +11,7 @@ Current files: `bot.py`, `cybermancy/glyphs/glyph_map.json` (138 glyphs), `requi
 | Discord bot token | Yes | From the Discord Developer Portal |
 | AnythingLLM, local, Qwen3-8B, workspace `cybermancy` | For AI commands | Same PC, `http://localhost:3001`. Claude / Gemini keys are optional cloud fallback |
 | `cybermancy/glyphs/glyph_map.json` | Yes | Included in this repo — 138 glyphs. The bot loads it on startup |
-| Pollinations (free) | `?dream` / `?sigil` images | Works with no key, but watermarked — free token at auth.pollinations.ai removes the watermark |
+| Cloudflare Workers AI (free) | `?dream` / `?sigil` images | FLUX.1-schnell, 10,000 Neurons/day free (~173 images/day), no watermark. Needs `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` in `.env` |
 
 ## 1. Python + project folder
 
@@ -111,4 +111,5 @@ For 24/7, run it on something always-on: a VPS, a Raspberry Pi, or a bot host. S
 | `python-dotenv could not parse statement` | A line in `.env` is malformed — usually a bare value with no `NAME=` in front, or a duplicated paste. Each line must be `NAME=value` |
 | AI commands say no AI configured | Neither `ANYTHINGLLM_API_KEY` nor a cloud key is set in `.env` |
 | `?query` prints `<think>` reasoning / invented glyphs | Old `bot.py` still running — stop it, replace the file, restart. Current `bot.py` strips think blocks and only uses glyphs from the 138-glyph map |
-| `?dream` / `?sigil` fail to return an image | Pollinations was unreachable — check your connection and try again |
+| `?dream` / `?sigil` say "Image generation not configured" | `CLOUDFLARE_ACCOUNT_ID` or `CLOUDFLARE_API_TOKEN` missing in `.env` — see README step 6 |
+| `?dream` / `?sigil` fail to return an image | Cloudflare Workers AI was unreachable or the day's 10,000 Neurons are used up — check your connection and the token, and try again |
