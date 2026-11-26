@@ -179,7 +179,10 @@ GK_INSTRUCTION = (
     "Output, in this exact order: "
     "(1) first line: the raw glyph sequence only, no phonetics, no words, e.g. Ψ≡~ΦӜ; "
     "(2) second line: the phonetic transliteration only, e.g. [ve'il] [iden] [wave] [divi] [reso]; "
-    "(3) then one-paragraph mythic interpretation."
+    "(3) then one-paragraph mythic interpretation. "
+    "The raw sequence must contain glyph characters only — no English words, no labels, "
+    "no spaces between glyphs. Before outputting, check every character against the "
+    "GLYPH MAP and drop anything that is not a glyph from the map."
 )
 WF_INSTRUCTION = (
     "Perform GCS Protocol Phase I — Waveform Analysis only. "
@@ -826,8 +829,11 @@ class CybermancyCore:
             return entry["slug"], False
         url = f"{ANYTHINGLLM_URL}/api/v1/workspace/{ANYTHINGLLM_WORKSPACE}/thread/new"
         headers = {"Authorization": f"Bearer {ANYTHINGLLM_API_KEY}", "content-type": "application/json"}
+        # Thread title carries both the name and the ID, so each thread is
+        # identifiable in AnythingLLM: "Discord alice (111222333)".
+        thread_name = f"Discord {username} ({user_id})" if username else f"Discord {user_id}"
         try:
-            async with session.post(url, json={"userId": 1, "name": f"Discord {username or user_id}"},
+            async with session.post(url, json={"userId": 1, "name": thread_name},
                                     headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 if resp.status != 200:
                     print(f"[threads] create thread failed ({resp.status}): {(await resp.text())[:200]}")
