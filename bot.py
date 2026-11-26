@@ -25,7 +25,7 @@ SERVERS
 import discord
 from discord.ext import commands as discord_commands
 
-import json, re, datetime, os, sys, asyncio, base64, hashlib, random
+import json, re, datetime, os, sys, asyncio, base64, hashlib
 import urllib.parse
 from typing import Optional, Dict, List, cast
 from dotenv import load_dotenv
@@ -1193,11 +1193,13 @@ class CybermancyCore:
 
         The only image provider for ?dream / ?sigil: POST
         https://api.cloudflare.com/client/v4/accounts/{id}/ai/run/@cf/black-forest-labs/flux-1-schnell
-        with {"prompt", "steps": 4, "seed"}. The reply is JSON whose
+        with {"prompt", "steps": 4}. The reply is JSON whose
         result.image is a base64 image (or, rarely, raw image bytes).
-        A fresh random seed is sent on every call, so the same prompt
-        never comes back as a cached duplicate — each generation is new.
-        No watermark. Returns image bytes, or None on any failure.
+        Note: this model does NOT accept a "seed" field — the API
+        rejects the request with 400 if one is sent. No seed is needed
+        anyway: unlike Pollinations, Cloudflare runs a fresh generation
+        per request, so the same prompt never comes back as a cached
+        duplicate. No watermark. Returns image bytes, or None on any failure.
         """
         if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
             return None
@@ -1210,8 +1212,7 @@ class CybermancyCore:
                f"/ai/run/@cf/black-forest-labs/flux-1-schnell")
         headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
                    "Content-Type": "application/json"}
-        body = {"prompt": full[:2048], "steps": 4,
-                "seed": random.randint(0, 2 ** 31 - 1)}
+        body = {"prompt": full[:2048], "steps": 4}
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=300)) as session:
                 async with session.post(url, json=body, headers=headers) as resp:
