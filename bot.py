@@ -134,7 +134,12 @@ SOVEREIGNTY:
 GK_INSTRUCTION = (
     "Generate a raw glyphic Collapse Key sequence encoding the provided phrase. "
     "Use only glyphs from the provided GLYPH MAP. "
-    "Output: (1) raw glyph sequence, (2) phonetic transliteration, (3) one-paragraph mythic interpretation."
+    "Use each glyph at most once in the key. If two concepts would map to the same glyph, "
+    "use it once and say so — do not repeat it. "
+    "Output, in this exact order: "
+    "(1) first line: the raw glyph sequence only, no phonetics, no words, e.g. Ψ≡~ΦӜ; "
+    "(2) second line: the phonetic transliteration only, e.g. [ve'il] [iden] [wave] [divi] [reso]; "
+    "(3) then one-paragraph mythic interpretation."
 )
 WF_INSTRUCTION = (
     "Perform GCS Protocol Phase I — Waveform Analysis only. "
@@ -379,6 +384,63 @@ def format_glyph_reply(text: str, glyph_map: Dict) -> str:
     text = re.sub(r"[ \t]{2,}", " ", text)
     text = re.sub(r"\n[ \t]+", "\n", text)
     return text
+
+
+def format_collapse_key_reply(text: str, glyph_map: Dict) -> str:
+    """Restructure a ?gk reply into: raw sequence, phonetics, interpretation.
+
+    Qwen lays the key out however it likes — usually glyphs interleaved
+    with phonetics inline. This rebuilds it deterministically from the
+    glyphs it actually used, in order of first appearance:
+
+        Ψ≡~ΦӜ
+        [ve'il] [iden] [wave] [divi] [reso]
+        **Mythic Interpretation**: ...
+
+    Each glyph appears at most once, matching the GK rule: a repeated
+    glyph (e.g. Ψ twice, once for "soul" and once for "exists") is kept
+    only at its first occurrence. The interpretation paragraphs are kept
+    as written; only the model's own sequence / phonetic lines are
+    removed, so they are not printed twice.
+    """
+    if not text or not glyph_map:
+        return text
+    ordered = sorted(glyph_map, key=len, reverse=True)
+    pattern = "|".join(re.escape(g) for g in ordered)
+    # Glyphs in order of first appearance, backticked or bare, deduplicated.
+    seq: List[str] = []
+    for m in re.finditer(r"`?(" + pattern + r")`?", text):
+        g = m.group(1)
+        if g not in seq:
+            seq.append(g)
+    if not seq:
+        return text
+    raw = "".join(seq)
+    phonetic_line = " ".join(f"[{glyph_map[g].get('phonetic', g)}]" for g in seq)
+
+    # Drop lines that are only the sequence and/or its phonetics, so the
+    # rebuilt header is not followed by the model's own copy of it.
+    kept: List[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # A phonetic-only line: [ve'il] [iden] ...
+        if re.fullmatch(r"(?:\[[^\]\n]+\]\s*)+", stripped):
+            continue
+        # Count glyph tokens in the line; if the line is mostly glyphs
+        # (sequence line, with or without phonetics), drop it.
+        glyph_hits = len(re.findall(r"`?(" + pattern + r")`?", line))
+        words = [w for w in re.split(r"\s+", re.sub(r"`[^`]*`|\([^)]*\)|\[[^\]]*\]", " ", line)) if w]
+        if glyph_hits >= 2 and len(words) <= 2:
+            continue
+        if glyph_hits >= 1 and not words:
+            continue
+        kept.append(line)
+    interpretation = "\n".join(kept).strip()
+    if not interpretation:
+        return f"{raw}\n{phonetic_line}"
+    return f"{raw}\n{phonetic_line}\n\n{interpretation}"
 
 
 def handle_manifestation(core, response_text: str):
@@ -931,6 +993,8 @@ async def handle_ritual(core: CybermancyCore, send_fn, user_id: str, platform: s
     )
     response = await core.call_ai(system, [{"role": "user", "content": input_text}], max_tokens)
     response = format_glyph_reply(response, core.glyph_map)
+    if save_prefix == "gk":
+        response = format_collapse_key_reply(response, core.glyph_map)
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     os.makedirs(save_dir, exist_ok=True)
     with open(os.path.join(save_dir, f"{save_prefix}_{ts}.txt"), "w", encoding="utf-8") as f:
