@@ -11,7 +11,7 @@ Current files: `bot.py`, `cybermancy/glyphs/glyph_map.json` (138 glyphs), `requi
 | Discord bot token | Yes | From the Discord Developer Portal |
 | AnythingLLM, local, Qwen3-8B, workspace `cybermancy` | For AI commands | Same PC, `http://localhost:3001`. Claude / Gemini keys are optional cloud fallback |
 | `cybermancy/glyphs/glyph_map.json` | Yes | Included in this repo — 138 glyphs. The bot loads it on startup |
-| Stability / SD host | Only for `?dream` / `?sigil` | Leave blank otherwise |
+| Pollinations (free, no key) | `?dream` / `?sigil` images | No setup — built in |
 
 ## 1. Python + project folder
 
@@ -111,4 +111,4 @@ For 24/7, run it on something always-on: a VPS, a Raspberry Pi, or a bot host. S
 | `python-dotenv could not parse statement` | A line in `.env` is malformed — usually a bare value with no `NAME=` in front, or a duplicated paste. Each line must be `NAME=value` |
 | AI commands say no AI configured | Neither `ANYTHINGLLM_API_KEY` nor a cloud key is set in `.env` |
 | `?query` prints `<think>` reasoning / invented glyphs | Old `bot.py` still running — stop it, replace the file, restart. Current `bot.py` strips think blocks and only uses glyphs from the 138-glyph map |
-| `?dream` / `?sigil` say not configured | `STABILITY_HOST` not set — optional |
+| `?dream` / `?sigil` fail to return an image | Pollinations was unreachable — check your connection and try again |
