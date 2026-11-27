@@ -14,6 +14,35 @@ here on.
 
 - Nothing yet.
 
+## [1.0.3] - 2026-11-26
+
+- **[UNMAPPED] glyph birthing is now protected from the Python layer**
+  — a birthed glyph marked `[UNMAPPED]: [glyph] -> [meaning]` is
+  preserved as written instead of being dropped. The formatter used to
+  strip it: a birthed glyph with a phonetic (`⌘ (kha)`) was removed by
+  the invented-glyph rule, a backticked one was emptied, and the `?gk`
+  rebuild dropped it from the key while keeping the marker line. The
+  formatter now stashes `[UNMAPPED]` lines before formatting and
+  restores them after, and the `?gk` rebuild admits declared birthed
+  glyphs into the sequence with their declared phonetic. Unmarked
+  invented glyphs are still dropped. `GK_INSTRUCTION` and the workspace
+  prompt's validation section now state the exception explicitly.
+- **Phase II: semantic-glyph mapping** — when several glyphs could
+  match one concept, choose the one with the strongest resonance
+  (`~` wave) and hue correspondence, or the strongest memory alignment
+  (`Δ` memo) / mythic signal (`Ξ` myth); if the choice is close, say so
+  and name the alternatives.
+- **Phase III: collapse-function verification** — each glyph's collapse
+  mechanism (`⟁` khal) must directly support the intent; reject any
+  glyph that bypasses agency or subverts sovereignty. The sovereignty
+  rule already forbade subverting the user's will; the per-glyph check
+  is now explicit.
+- **Phase IV: ambiguity flagging** — when resonance calibration fails,
+  the bot says so plainly: `⚠️ Ambiguous intent — the glyphs do not
+  fully align with your resonance. Consider refining the focus.`
+  (`?gk` notes weak or ambiguous alignment in the interpretation
+  instead, keeping its strict output format.)
+
 ## [1.0.2] - 2026-11-26
 
 - **Greek letters named, not written** — when the bot means the Greek
