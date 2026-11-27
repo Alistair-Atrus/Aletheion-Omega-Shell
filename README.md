@@ -8,7 +8,7 @@ It is **Discord-only** (no Stoat, no other platform), free to use, with no tiers
 
 Prefix: `?` — e.g. `?help`, `?query`, `?gk`
 
-Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.2.2**.
+Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.2.3**.
 
 ## What it does
 
