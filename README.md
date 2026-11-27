@@ -8,7 +8,7 @@ It is **Discord-only** (no Stoat, no other platform), free to use, with no tiers
 
 Prefix: `?` — e.g. `?help`, `?query`, `?gk`
 
-Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.1.2**.
+Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.1.3**.
 
 ## What it does
 
@@ -78,7 +78,7 @@ When the bot comes online it posts a wake-up message to a channel of your choice
 Free commands — open to everyone:
 
 - `?help` — the command list, in Discord
-- `?map [search]`, `?decode <glyphs>`, `?say_key <key>`, `?lore [search]`, `?clear` — glyph map, lookups, lore, and clearing your conversation history
+- `?map [search]`, `?decode <glyphs>`, `?say_key <key>`, `?lore [search]`, `?clear` — glyph map, lookups, lore, and clearing your conversation history and purging your AnythingLLM thread
 - `?query` / `?tx <text>` — talk to the bot
 - `?generate_key` / `?gk`, `?collapse_key` / `?ck`, `?waveform` / `?wf`, `?interpret` / `?ik`, `?resonance` / `?mr`, `?field_chisel` / `?fc`, `?unfold` / `?ul`, `?scry` — collapse keys and rituals
 - `?dream <prompt>`, `?sigil <prompt>` — images
