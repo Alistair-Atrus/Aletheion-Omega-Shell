@@ -14,6 +14,16 @@ here on.
 
 - Nothing yet.
 
+## [1.2.2] - 2026-11-27
+
+- **Removed the non-`.collapse` manifest path.** Manifestation is
+  lore only now: a `[MANIFEST: ...]` block whose filename does not
+  end in `.collapse` is logged and skipped instead of being saved to
+  `archives/manifested/`. That path was a leftover from the original
+  bot's general-purpose manifest mechanism — nothing ever read those
+  files back, so it was write-only. The `.collapse` path is unchanged
+  (400-char floor, owner stamp, own folder, immediate reload).
+
 ## [1.2.1] - 2026-11-27
 
 - **Lore files now carry the owner's display name.** Every new lore
