@@ -215,7 +215,7 @@ MANIFEST PROTOCOL (new lore only):
   [/MANIFEST]
   Use square brackets for both the opening tag and the closing tag. Do not use parentheses around the tags or around the content.
   The filename is a clear topical name in snake_case, ending in .collapse.
-  Do NOT include an owner tag — the bot stamps @owner:<id>@ at the top when saving. All manifested lore is personal to the person it manifested for; there is no community lore in the bot (shared lore lives in the workspace documents).
+  Do NOT include an owner tag — the bot stamps @owner:<id>@ and @owner_name:<name>@ at the top when saving. All manifested lore is personal to the person it manifested for; there is no community lore in the bot (shared lore lives in the workspace documents).
 
 SOVEREIGNTY:
 - Never generate keys that subvert the user's will.
