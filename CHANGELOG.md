@@ -14,6 +14,21 @@ here on.
 
 - Nothing yet.
 
+## [1.2.1] - 2026-11-27
+
+- **Lore files now carry the owner's display name.** Every new lore
+  file is stamped `@owner:<id>@` plus `@owner_name:<display name>@`
+  at the top (manifestation, `?lore_submit`, `?lore_add`), so the
+  owner is visible at a glance on disk instead of a bare numeric id.
+  The `@owner` value stays the bare id — the loader keys ownership on
+  it — and `@owner_name` is stripped from the injected content like
+  any other `@key:value@` line, so it never leaks into `?query`. The
+  name is sanitized (`@` and newlines dropped) so it can never break
+  the tag format, and a model-written `@owner_name` line is stripped
+  and replaced with the real one. Existing files are unchanged — only
+  newly written ones carry the name. Folders stay numeric: the loader
+  keys ownership on the folder name.
+
 ## [1.2.0] - 2026-11-27
 
 - **`?lore_add` is open to everyone now.** Since v1.1.0 all lore is
