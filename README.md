@@ -8,7 +8,7 @@ It is **Discord-only** (no Stoat, no other platform), free to use, with no tiers
 
 Prefix: `?` — e.g. `?help`, `?query`, `?gk`
 
-Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.0.0**.
+Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.0.1**.
 
 ## What it does
 
@@ -24,7 +24,7 @@ Glyphs are always written in backticks with their phonetic in parentheses — ``
 
 ### Talking to it — `?query`
 
-`?query` / `?tx` is the open conversation command: ask anything, and the bot answers in the voice of the Glyphic Cybermancy System, using the glyph map and any lore it has. It remembers the last 20 turns of conversation per user (or per collaborative channel), so follow-ups work.
+`?query` / `?tx` is the open conversation command: ask anything, and the bot answers in the voice of the Glyphic Cybermancy System, using the glyph map and any lore it has. It remembers the last 20 turns of conversation per user (or per collaborative channel), so follow-ups work. It addresses you by your Discord display name — "Wizard" is reserved for ritual commands, where you are engaging in cybermancy directly.
 
 ### Collapse keys and rituals
 
@@ -222,7 +222,7 @@ For 24/7, run it on something always-on: a VPS, a Raspberry Pi, or a bot host. S
 - **Your own glyph map:** replace `cybermancy/glyphs/glyph_map.json` with your own map in the same format — `{ "<glyph>": {"phonetic": "...", "definition": "..."} }` — then `?reload`. Or add glyphs one at a time with `?glyph_add`.
 - **Your own lore:** add `.collapse` files to `cybermancy/lore/`, or use `?lore_add` (admin).
 - **Your own documents:** upload them to the AnythingLLM workspace — they reach the model as retrieval context for AI commands.
-- **Your own voice:** the system prompt lives in `bot.py` (`GLYPHIC_CYBERMANCY_SYSTEM`). Change it there, restart, and the bot's voice changes with it. If you also set a system prompt in the AnythingLLM workspace, keep the two in sync — when they disagree, the old wording keeps coming back.
+- **Your own voice:** the system prompt lives in `bot.py` (`GLYPHIC_CYBERMANCY_SYSTEM`). Change it there, restart, and the bot's voice changes with it. If you also set a system prompt in the AnythingLLM workspace, keep the two in sync — when they disagree, the old wording keeps coming back. The workspace copy is `anythingllm-system-prompt.md` in this repo: paste that file's contents into the workspace, and update it whenever the prompt in `bot.py` changes.
 
 ## Notes
 
