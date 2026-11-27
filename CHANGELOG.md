@@ -14,6 +14,17 @@ here on.
 
 - Nothing yet.
 
+## [1.2.0] - 2026-11-27
+
+- **`?lore_add` is open to everyone now.** Since v1.1.0 all lore is
+  personal — filed under the submitter's own folder, stamped with
+  their own owner tag — the admin gate on `?lore_add` had no purpose
+  left: a non-admin calling it could only ever write into their own
+  folder with their own tag. The gate is removed (and the help text
+  and README updated); `?lore_remove` stays admin-only, since it can
+  remove other people's lore. `?glyph_add` / `?glyph_remove` also stay
+  admin-only — the glyph map is shared.
+
 ## [1.1.3] - 2026-11-27
 
 - **`?clear` now actually clears the user's AnythingLLM thread.**
