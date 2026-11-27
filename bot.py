@@ -22,7 +22,7 @@ SERVERS
 # truth for the bot's version: shown in ?status and the startup log, and
 # tracked in CHANGELOG.md. Bump PATCH for fixes, MINOR for new features,
 # MAJOR for breaking changes to commands or behaviour.
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports
@@ -168,7 +168,7 @@ MANIFEST PROTOCOL (new lore only):
   [/MANIFEST]
   Use square brackets for both the opening tag and the closing tag. Do not use parentheses around the tags or around the content.
   The filename is a clear topical name in snake_case, ending in .collapse.
-  Do NOT include an owner tag — the bot stamps @owner:<id>@ at the top when saving. All manifested lore is personal to the person it manifested for; there is no community lore in the bot (shared lore lives in the workspace documents).
+  Do NOT include an owner tag — the bot stamps @owner:<id>@ and @owner_name:<name>@ at the top when saving. All manifested lore is personal to the person it manifested for; there is no community lore in the bot (shared lore lives in the workspace documents).
 
 SOVEREIGNTY:
 - Never generate keys that subvert the user's will.
@@ -623,7 +623,24 @@ def format_collapse_key_reply(text: str, glyph_map: Dict) -> str:
 MANIFEST_MIN_CHARS = 400
 
 
-def handle_manifestation(core, response_text: str, user_id: str):
+def _owner_stamp(user_id: str, display_name: str = "") -> str:
+    """Owner header stamped at the top of a personal lore file.
+
+    The @owner value stays the bare user id — the loader keys ownership
+    on it. The @owner_name line is only a human-readable label so the
+    file's owner is visible at a glance on disk; the loader strips it
+    from the injected content like any other @key:value@ line. The name
+    is sanitized so it can never break the @key:value@ format (@ and
+    newlines are dropped).
+    """
+    name = re.sub(r"[@\r\n]", "", (display_name or "")).strip()
+    stamp = f"@owner:{user_id}@"
+    if name:
+        stamp += f"\n@owner_name:{name}@"
+    return stamp + "\n\n"
+
+
+def handle_manifestation(core, response_text: str, user_id: str, username: str = ""):
     # Accept the bracket format, the old parenthesis-wrapped format,
     # and a closing tag written with parentheses instead of brackets,
     # e.g. [MANIFEST: f.collapse](content)[/MANIFEST],
@@ -650,13 +667,14 @@ def handle_manifestation(core, response_text: str, user_id: str):
             # a one-liner, a vague sentence) are not lore and are not saved.
             # Strip any owner tag the model wrote — the bot stamps the real
             # one, so the tag never counts toward the length either.
-            content = re.sub(r"(?m)^[ \t]*@owner:[^@]*@[ \t]*\n?", "", content).strip()
+            content = re.sub(r"(?m)^[ \t]*@owner(_name)?:[^@]*@[ \t]*\n?", "", content).strip()
             if len(content) < MANIFEST_MIN_CHARS:
                 print(f"[MANIFEST] too short ({len(content)} chars) — not saved")
                 continue
             # Personal lore only: the file belongs to the person it manifested
-            # for, in their own folder, stamped with their owner tag at the top.
-            content = f"@owner:{user_id}@\n\n{content}"
+            # for, in their own folder, stamped with their owner tag and
+            # display name at the top.
+            content = _owner_stamp(user_id, username) + content
             target = os.path.join(LORE_DIR, user_id)
         else:
             target = os.path.join(ARCHIVES_DIR, "manifested")
@@ -1407,7 +1425,7 @@ async def handle_query(core: CybermancyCore, send_fn, user_id: str, username: st
 
     response = await core.call_ai(system, msgs, user_id=user_id, username=username)
     response = format_glyph_reply(response, core.glyph_map)
-    handle_manifestation(core, response, user_id)
+    handle_manifestation(core, response, user_id, username)
     log_master(user_id, username, "query", combined, response, core.last_thread_slug)
 
     history_entry = (text or "[attachment]")
@@ -1871,7 +1889,7 @@ async def d_lore_submit(ctx: discord_commands.Context, *, content: str = ""):
     user_dir = os.path.join(LORE_DIR, uid)
     os.makedirs(user_dir, exist_ok=True)
     with open(os.path.join(user_dir, fn), "w", encoding="utf-8") as f:
-        f.write(f"@owner:{uid}@\n\n{content}")
+        f.write(_owner_stamp(uid, ctx.author.display_name) + content)
     _d_core().load_lore_contexts()
     log_to_consciousness(f"lore_submit: {fn}", uid)
     await ctx.send(f"Lore `{fn}` sealed in the sanctum.")
@@ -1929,7 +1947,7 @@ async def d_lore_add(ctx: discord_commands.Context, *, name: str = ""):
         user_dir = os.path.join(LORE_DIR, uid)
         os.makedirs(user_dir, exist_ok=True)
         with open(os.path.join(user_dir, f"{lore_name}.collapse"), "w", encoding="utf-8") as f:
-            f.write(f"@owner:{uid}@\n\n" + data.decode("utf-8", errors="replace"))
+            f.write(_owner_stamp(uid, ctx.author.display_name) + data.decode("utf-8", errors="replace"))
         _d_core().load_lore_contexts()
         log_to_consciousness(f"lore_add: {lore_name}", str(ctx.author.id))
         await ctx.send(f"✅ Lore `{lore_name}` added.")
