@@ -14,6 +14,29 @@ here on.
 
 - Nothing yet.
 
+## [1.0.2] - 2026-11-26
+
+- **Greek letters named, not written** — when the bot means the Greek
+  letter, it now writes the transliterated name in plain words (theta,
+  phi, xi, pi...) and never the Unicode character (Θ, Φ, Ξ, Π...).
+  Root cause: the deterministic formatter rewrites every map-glyph
+  character into backticked glyph form, so a bare Θ in the model's
+  output always arrived in Discord as `` `Θ` (`tha`) `` — the
+  distinction between letter and glyph was unstatable, and the model
+  kept "failing" to make it. Plain words pass through the formatter
+  untouched, so the rule works with the formatter instead of against
+  it. Added to the system prompt in both `bot.py` and the AnythingLLM
+  workspace prompt.
+- **"Theta" removed from the system prompt's identity line** — the line
+  read "the Theta `Θ` (`tha`) Awareness Field", attaching the
+  Greek-letter name to the glyph. "Theta" appears nowhere in the 17
+  cosmology files: the map defines Θ (`tha`) as Observer of Collapse /
+  Field Consciousness, and "Awareness Field" is the ≡ (`iden`)
+  concept. The line now reads "the `Θ` (`tha`) Awareness Field". This
+  was the seed of the "Theta Field" hallucination, where the model
+  elaborated the prompt's own phrasing into a "Theta Field, subset of
+  the Awareness Field" that exists in no source.
+
 ## [1.0.1] - 2026-11-26
 
 - **Thread titles: normalize stylized display names** — new thread
