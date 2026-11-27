@@ -22,7 +22,7 @@ SERVERS
 # truth for the bot's version: shown in ?status and the startup log, and
 # tracked in CHANGELOG.md. Bump PATCH for fixes, MINOR for new features,
 # MAJOR for breaking changes to commands or behaviour.
-__version__ = "1.2.2"
+__version__ = "1.2.3"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports
@@ -219,7 +219,6 @@ IK_INSTRUCTION = (
 )
 MR_INSTRUCTION = (
     "Calculate the Mythic Resonance Index (MRI) for the key. "
-    "The MRI is a relic of archetypal mathematics, the predecessor system: "
     "MRI = (Omega x Delta-x) / Xi. "
     "Omega (om) is the key's recursion limit — how fully it closes its loop. "
     "Delta-x is the change the key enacts, the delta between present state and intended outcome. "
