@@ -22,7 +22,7 @@ SERVERS
 # truth for the bot's version: shown in ?status and the startup log, and
 # tracked in CHANGELOG.md. Bump PATCH for fixes, MINOR for new features,
 # MAJOR for breaking changes to commands or behaviour.
-__version__ = "1.0.5"
+__version__ = "1.1.0"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports
@@ -162,12 +162,14 @@ COLLAPSE KEY PROTOCOL (follow all five phases when using collapse_key/ck):
   PHASE V   — Output: raw glyph sequence, phonetic transliteration, ritual interpretation.
 
 MANIFEST PROTOCOL (new lore only):
+  Only manifest when something genuinely meaningful emerged from THIS person's interaction — a distinct insight, pattern, or turning point in their collapse work, unique to them and tied to their identity (`≡` (`iden`)). Never manifest trivia, a summary, a glyph list, or a single vague sentence. A manifestation must hold weight: several paragraphs of specific, grounded prose about what this person actually did, saw, or became — not generic word salad.
   Format:
   [MANIFEST: filename.collapse]
   content here
   [/MANIFEST]
-  Use square brackets for both the opening tag and the closing tag.
-  Do not use parentheses around the tags or around the content.
+  Use square brackets for both the opening tag and the closing tag. Do not use parentheses around the tags or around the content.
+  The filename is a clear topical name in snake_case, ending in .collapse.
+  Do NOT include an owner tag — the bot stamps @owner:<id>@ at the top when saving. All manifested lore is personal to the person it manifested for; there is no community lore in the bot (shared lore lives in the workspace documents).
 
 SOVEREIGNTY:
 - Never generate keys that subvert the user's will.
@@ -619,7 +621,10 @@ def format_collapse_key_reply(text: str, glyph_map: Dict) -> str:
     return f"{raw}\n{phonetic_line}\n\n{interpretation}"
 
 
-def handle_manifestation(core, response_text: str):
+MANIFEST_MIN_CHARS = 400
+
+
+def handle_manifestation(core, response_text: str, user_id: str):
     # Accept the bracket format, the old parenthesis-wrapped format,
     # and a closing tag written with parentheses instead of brackets,
     # e.g. [MANIFEST: f.collapse](content)[/MANIFEST],
@@ -640,15 +645,30 @@ def handle_manifestation(core, response_text: str):
         # Strip one outer pair of parentheses if the content was wrapped in them.
         if len(content) >= 2 and content.startswith("(") and content.endswith(")"):
             content = content[1:-1].strip()
-        target = LORE_DIR if filename.endswith(".collapse") else os.path.join(ARCHIVES_DIR, "manifested")
-        if not filename.endswith(".collapse") and "." not in filename:
-            filename += ".txt"
+        is_lore = filename.endswith(".collapse")
+        if is_lore:
+            # A manifestation must hold weight: short fragments (a glyph list,
+            # a one-liner, a vague sentence) are not lore and are not saved.
+            # Strip any owner tag the model wrote — the bot stamps the real
+            # one, so the tag never counts toward the length either.
+            content = re.sub(r"(?m)^[ \t]*@owner:[^@]*@[ \t]*\n?", "", content).strip()
+            if len(content) < MANIFEST_MIN_CHARS:
+                print(f"[MANIFEST] too short ({len(content)} chars) — not saved")
+                continue
+            # Personal lore only: the file belongs to the person it manifested
+            # for, in their own folder, stamped with their owner tag at the top.
+            content = f"@owner:{user_id}@\n\n{content}"
+            target = os.path.join(LORE_DIR, user_id)
+        else:
+            target = os.path.join(ARCHIVES_DIR, "manifested")
+            if "." not in filename:
+                filename += ".txt"
         os.makedirs(target, exist_ok=True)
         try:
             with open(os.path.join(target, filename), "w", encoding="utf-8") as f:
                 f.write(content)
-            print(f"[MANIFEST] {filename}")
-            if filename.endswith(".collapse"):
+            print(f"[MANIFEST] {filename}" + (f" (owner {user_id})" if is_lore else ""))
+            if is_lore:
                 core.load_lore_contexts()
         except Exception as e:
             print(f"[MANIFEST] Error: {e}")
@@ -702,7 +722,7 @@ def help_pages(p: str) -> tuple:
         f"`{p}map [page|glyph]` — Browse/search the Glyph Map\n"
         f"`{p}decode <text>` — Decode glyphs to definitions\n"
         f"`{p}say_key <key>` — Phonetic pronunciation\n"
-        f"`{p}lore [name]` — View public lore\n\n"
+        f"`{p}lore [name]` — View your lore\n\n"
         f"**AI — ALL USERS**\n"
         f"`{p}query <text>` / `{p}tx` — Query the Glyphic Cybermancy System AI\n"
         f"`{p}generate_key <phrase>` / `{p}gk` — Generate Collapse Key\n"
@@ -794,30 +814,40 @@ class CybermancyCore:
         if not os.path.exists(LORE_DIR):
             return
         meta_re = re.compile(r"@(\w+):([^@]*)@")
-        for fn in sorted(os.listdir(LORE_DIR)):
-            if not fn.endswith(".collapse"):
-                continue
-            try:
-                with open(os.path.join(LORE_DIR, fn), encoding="utf-8") as f:
-                    content = f.read()
-                name = fn[:-9]
-                self.lore_contexts[name] = content
-                owner, silent = None, False
-                for m in meta_re.finditer(content):
-                    k, v = m.group(1).lower(), m.group(2).strip()
-                    if k == "owner":
-                        owner = v
-                    elif k == "visibility" and v.lower() == "silent":
-                        silent = True
-                self.lore_owners[name] = owner
-                self.lore_display[name] = "\n".join(
-                    l for l in content.splitlines()
-                    if not re.fullmatch(r"\s*@\w+:[^@]*@\s*", l)
-                ).strip()
-                if not silent:
-                    self.visible_lore.append(name)
-            except Exception as e:
-                print(f"[Lore] Error loading {fn}: {e}")
+        # Lore is personal: each person's files live in their own folder,
+        # cybermancy/lore/<user_id>/name.collapse. Walk the tree so two
+        # people can hold lore of the same name — the key is owner/name.
+        # A file with no owner (legacy flat file, no @owner tag) belongs to
+        # nobody and is never injected to anyone.
+        for root, _dirs, files in os.walk(LORE_DIR):
+            for fn in sorted(files):
+                if not fn.endswith(".collapse"):
+                    continue
+                path = os.path.join(root, fn)
+                try:
+                    with open(path, encoding="utf-8") as f:
+                        content = f.read()
+                    name = fn[:-9]
+                    rel = os.path.relpath(path, LORE_DIR)
+                    folder_owner = os.path.dirname(rel).replace(os.sep, "/") or None
+                    owner, silent = folder_owner, False
+                    for m in meta_re.finditer(content):
+                        k, v = m.group(1).lower(), m.group(2).strip()
+                        if k == "owner" and owner is None:
+                            owner = v
+                        elif k == "visibility" and v.lower() == "silent":
+                            silent = True
+                    key = f"{owner}/{name}" if owner else name
+                    self.lore_contexts[key] = content
+                    self.lore_owners[key] = owner
+                    self.lore_display[key] = "\n".join(
+                        l for l in content.splitlines()
+                        if not re.fullmatch(r"\s*@\w+:[^@]*@\s*", l)
+                    ).strip()
+                    if not silent:
+                        self.visible_lore.append(key)
+                except Exception as e:
+                    print(f"[Lore] Error loading {path}: {e}")
 
     # ── History ────────────────────────────────────────────────────────────────
 
@@ -1317,10 +1347,10 @@ async def handle_query(core: CybermancyCore, send_fn, user_id: str, username: st
     history = core.get_history(user_id, channel_id)
     is_collab = channel_id in core.collab_channels
 
+    # Lore is personal: only the caller's own manifested lore is injected,
+    # never another person's. Community lore lives in the workspace docs.
     lore_filter = {n: c for n, c in core.lore_contexts.items()
-                   if is_collab
-                   or core.lore_owners.get(n) is None
-                   or core.lore_owners.get(n) == user_id}
+                   if core.lore_owners.get(n) == user_id}
 
     pdf_context = "".join(
         f"\n\n=== PDF: {a['filename']} ===\n{a.get('extracted_text','')[:20000]}\n=== END PDF ==="
@@ -1341,7 +1371,7 @@ async def handle_query(core: CybermancyCore, send_fn, user_id: str, username: st
 
     response = await core.call_ai(system, msgs, user_id=user_id, username=username)
     response = format_glyph_reply(response, core.glyph_map)
-    handle_manifestation(core, response)
+    handle_manifestation(core, response, user_id)
     log_master(user_id, username, "query", combined, response, core.last_thread_slug)
 
     history_entry = (text or "[attachment]")
@@ -1577,12 +1607,16 @@ async def d_say_key(ctx: discord_commands.Context, *, key: str = ""):
 async def d_lore(ctx: discord_commands.Context, *, search: str = ""):
     core = _d_core()
     uid = str(ctx.author.id)
+    # Personal lore only: a person sees their own manifestations, never
+    # anyone else's. Keys are owner/name; display the topic name.
     visible = [n for n in sorted(core.visible_lore)
-               if core.lore_owners.get(n) is None or core.lore_owners[n] == uid]
+               if core.lore_owners.get(n) == uid]
+    def _topic(key: str) -> str:
+        return key.rsplit("/", 1)[-1]
     if not search:
         if not visible:
             return await ctx.send("No lore available.")
-        await ctx.send("**Lore:**\n" + "\n".join(f"{i+1}. {n}" for i, n in enumerate(visible))
+        await ctx.send("**Lore:**\n" + "\n".join(f"{i+1}. {_topic(n)}" for i, n in enumerate(visible))
                        + "\n\nUse `?lore <number>` or `?lore <name>`.")
         return
     target = None
@@ -1591,9 +1625,9 @@ async def d_lore(ctx: discord_commands.Context, *, search: str = ""):
         if 1 <= n <= len(visible):
             target = visible[n-1]
     else:
-        target = next((n for n in visible if n.lower() == search.lower()), None)
+        target = next((n for n in visible if _topic(n).lower() == search.lower()), None)
     if target:
-        await send_chunks(ctx.send, f"**Lore: {target}**\n{core.lore_display.get(target, core.lore_contexts[target])}")
+        await send_chunks(ctx.send, f"**Lore: {_topic(target)}**\n{core.lore_display.get(target, core.lore_contexts[target])}")
     else:
         await ctx.send(f"Lore '{search}' not found.")
 
@@ -1791,8 +1825,9 @@ async def d_lore_submit(ctx: discord_commands.Context, *, content: str = ""):
     uid = str(ctx.author.id)
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     fn = f"{re.sub(r'[^a-zA-Z0-9_-]','_',ctx.author.display_name[:20])}_{ts}.collapse"
-    os.makedirs(LORE_DIR, exist_ok=True)
-    with open(os.path.join(LORE_DIR, fn), "w", encoding="utf-8") as f:
+    user_dir = os.path.join(LORE_DIR, uid)
+    os.makedirs(user_dir, exist_ok=True)
+    with open(os.path.join(user_dir, fn), "w", encoding="utf-8") as f:
         f.write(f"@owner:{uid}@\n\n{content}")
     _d_core().load_lore_contexts()
     log_to_consciousness(f"lore_submit: {fn}", uid)
@@ -1847,9 +1882,13 @@ async def d_lore_add(ctx: discord_commands.Context, *, name: str = ""):
     try:
         data = await _d_dl(att)
         lore_name = (name.strip() or att.filename[:-4]).replace(" ", "_")
-        os.makedirs(LORE_DIR, exist_ok=True)
-        with open(os.path.join(LORE_DIR, f"{lore_name}.collapse"), "w", encoding="utf-8") as f:
-            f.write(data.decode("utf-8", errors="replace"))
+        # Personal lore: filed under the admin who submitted it, stamped
+        # with their owner tag.
+        uid = str(ctx.author.id)
+        user_dir = os.path.join(LORE_DIR, uid)
+        os.makedirs(user_dir, exist_ok=True)
+        with open(os.path.join(user_dir, f"{lore_name}.collapse"), "w", encoding="utf-8") as f:
+            f.write(f"@owner:{uid}@\n\n" + data.decode("utf-8", errors="replace"))
         _d_core().load_lore_contexts()
         log_to_consciousness(f"lore_add: {lore_name}", str(ctx.author.id))
         await ctx.send(f"✅ Lore `{lore_name}` added.")
@@ -1861,11 +1900,26 @@ async def d_lore_add(ctx: discord_commands.Context, *, name: str = ""):
 async def d_lore_remove(ctx: discord_commands.Context, *, lore_name: str):
     if not _d_admin(ctx):
         return await ctx.send("Admin only.")
-    lore_name = lore_name.replace(" ", "_")
-    path = os.path.join(LORE_DIR, f"{lore_name}.collapse")
-    if not os.path.exists(path):
+    # Usage: ?lore_remove <name> [owner_id] — the owner is needed when more
+    # than one person holds lore of the same name.
+    parts = lore_name.replace(" ", "_").split()
+    lore_name = parts[0]
+    owner_filter = parts[1] if len(parts) > 1 else None
+    matches = []
+    for root, _dirs, files in os.walk(LORE_DIR):
+        if f"{lore_name}.collapse" in files:
+            matches.append(os.path.join(root, f"{lore_name}.collapse"))
+    if owner_filter:
+        matches = [p for p in matches
+                   if os.path.relpath(os.path.dirname(p), LORE_DIR).replace(os.sep, "/") == owner_filter]
+    if not matches:
         return await ctx.send(f"No lore `{lore_name}` found.")
-    os.remove(path)
+    if len(matches) > 1:
+        owners = [os.path.relpath(os.path.dirname(p), LORE_DIR).replace(os.sep, "/") or "unowned"
+                  for p in matches]
+        return await ctx.send(f"Multiple owners hold `{lore_name}`: {', '.join(owners)}. "
+                              f"Re-run as `?lore_remove {lore_name} <user_id>`.")
+    os.remove(matches[0])
     _d_core().load_lore_contexts()
     await ctx.send(f"✅ Lore `{lore_name}` removed.")
 
