@@ -14,6 +14,31 @@ here on.
 
 - Nothing yet.
 
+## [1.0.1] - 2026-11-26
+
+- **Thread titles: normalize stylized display names** — new thread
+  titles are NFKC-normalized, so a display name written in stylized
+  Unicode (e.g. mathematical fraktur) folds back to plain letters
+  (`𝔈𝔯𝔬𝔫𝔦𝔫` → `Eronin`) instead of rendering blank in AnythingLLM's
+  UI, which has no glyphs for those codepoints. Normal names are
+  untouched. Only the title is normalized — the model still sees the
+  styled name, and the user is still addressed by it. Applies to new
+  threads; existing threads keep their titles.
+- **Workspace prompt in the repo** — the AnythingLLM workspace system
+  prompt is now part of the repo as `anythingllm-system-prompt.md`, so
+  both prompt layers live in one place and can't drift apart unnoticed.
+  Paste that file's contents into the Cybermancy workspace; update it
+  whenever the prompt in `bot.py` changes.
+- **Address users by name** — the bot now addresses each user by their
+  Discord display name in ordinary conversation (`?query`), instead of
+  calling everyone "Wizard". "Wizard" is a ritual title only, for when
+  the user is engaging in cybermancy directly (collapse keys, rituals,
+  scrying). The name was already passed to the model (SESSION block and
+  `[Name]:` message prefix); the system prompt now states the rule
+  explicitly, in both `bot.py` and the AnythingLLM workspace system
+  prompt. The sovereignty rule now says "the user's will" instead of
+  "the Wizard's will" — same meaning, one less non-ritual "Wizard".
+
 ## [1.0.0] - 2026-11-26
 
 - **Version numbers introduced** — the bot is now v1.0.0. `__version__`
