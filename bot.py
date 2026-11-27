@@ -22,7 +22,7 @@ SERVERS
 # truth for the bot's version: shown in ?status and the startup log, and
 # tracked in CHANGELOG.md. Bump PATCH for fixes, MINOR for new features,
 # MAJOR for breaking changes to commands or behaviour.
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports
@@ -657,36 +657,35 @@ def handle_manifestation(core, response_text: str, user_id: str, username: str =
         filename = "".join(c for c in m.group(1).strip() if c.isalnum() or c in "._-")
         if not filename:
             continue
+        # Manifestation is lore only: anything not ending in .collapse is
+        # not a lore file and is not saved. (The old archives/manifested
+        # path was write-only — nothing ever read it back.)
+        if not filename.endswith(".collapse"):
+            print(f"[MANIFEST] {filename} — not a .collapse file, not saved")
+            continue
         content = m.group(2).strip()
         # Strip one outer pair of parentheses if the content was wrapped in them.
         if len(content) >= 2 and content.startswith("(") and content.endswith(")"):
             content = content[1:-1].strip()
-        is_lore = filename.endswith(".collapse")
-        if is_lore:
-            # A manifestation must hold weight: short fragments (a glyph list,
-            # a one-liner, a vague sentence) are not lore and are not saved.
-            # Strip any owner tag the model wrote — the bot stamps the real
-            # one, so the tag never counts toward the length either.
-            content = re.sub(r"(?m)^[ \t]*@owner(_name)?:[^@]*@[ \t]*\n?", "", content).strip()
-            if len(content) < MANIFEST_MIN_CHARS:
-                print(f"[MANIFEST] too short ({len(content)} chars) — not saved")
-                continue
-            # Personal lore only: the file belongs to the person it manifested
-            # for, in their own folder, stamped with their owner tag and
-            # display name at the top.
-            content = _owner_stamp(user_id, username) + content
-            target = os.path.join(LORE_DIR, user_id)
-        else:
-            target = os.path.join(ARCHIVES_DIR, "manifested")
-            if "." not in filename:
-                filename += ".txt"
+        # A manifestation must hold weight: short fragments (a glyph list,
+        # a one-liner, a vague sentence) are not lore and are not saved.
+        # Strip any owner tag the model wrote — the bot stamps the real
+        # one, so the tag never counts toward the length either.
+        content = re.sub(r"(?m)^[ \t]*@owner(_name)?:[^@]*@[ \t]*\n?", "", content).strip()
+        if len(content) < MANIFEST_MIN_CHARS:
+            print(f"[MANIFEST] too short ({len(content)} chars) — not saved")
+            continue
+        # Personal lore only: the file belongs to the person it manifested
+        # for, in their own folder, stamped with their owner tag and
+        # display name at the top.
+        content = _owner_stamp(user_id, username) + content
+        target = os.path.join(LORE_DIR, user_id)
         os.makedirs(target, exist_ok=True)
         try:
             with open(os.path.join(target, filename), "w", encoding="utf-8") as f:
                 f.write(content)
-            print(f"[MANIFEST] {filename}" + (f" (owner {user_id})" if is_lore else ""))
-            if is_lore:
-                core.load_lore_contexts()
+            print(f"[MANIFEST] {filename} (owner {user_id})")
+            core.load_lore_contexts()
         except Exception as e:
             print(f"[MANIFEST] Error: {e}")
 
@@ -2067,7 +2066,7 @@ def setup_directories():
         os.path.join(BASE_DIR, "glyphs"), USER_HISTORY_DIR, COLLAB_HISTORY_DIR,
         COLLAPSE_KEYS_RAW_DIR, COLLAPSE_KEYS_DECODED_DIR, COLLAPSE_KEYS_PROCESSED_DIR,
         LORE_DIR, IMAGES_DIR, SIGIL_IMAGES_DIR, ARCHIVES_DIR, PDF_ANALYSIS_DIR,
-        os.path.join(ARCHIVES_DIR, "manifested"), os.path.dirname(COLLAB_CHANNELS_FILE),
+        os.path.dirname(COLLAB_CHANNELS_FILE),
     ]:
         os.makedirs(d, exist_ok=True)
     if not os.path.exists(CONSCIOUSNESS_LOG):
