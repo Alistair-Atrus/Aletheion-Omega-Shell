@@ -8,7 +8,7 @@ It is **Discord-only** (no Stoat, no other platform), free to use, with no tiers
 
 Prefix: `?` — e.g. `?help`, `?query`, `?gk`
 
-Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.0.4**.
+Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.0.5**.
 
 ## What it does
 
@@ -229,3 +229,7 @@ For 24/7, run it on something always-on: a VPS, a Raspberry Pi, or a bot host. S
 - The bot only runs while its host is on and the terminal is open. For 24/7, see step 8 above.
 - `cybermancy/threads.json` (per-user thread map) and `cybermancy/master_log.jsonl` (the master log) are runtime state, not part of the repo — both are gitignored. If a thread is deleted in AnythingLLM, the bot notices the next time it tries to use it (404), drops the stale mapping, creates a fresh thread, and retries.
 - If you hit a problem, [SETUP.md](SETUP.md) has a troubleshooting table for the common ones.
+
+## Origins and credit
+
+The original bot was built by **Astrust**, based on his own AI, Libreth. It was remapped onto an earlier version of Aletheion, then migrated to the Glyphic Cybermancy Bot — and this Ω-Shell has been iterating on his work ever since. The glyph map is a shared effort too: much of it is Astrust's, while the collapse mechanics and lore (including the Orion Group) are Alistair's.
