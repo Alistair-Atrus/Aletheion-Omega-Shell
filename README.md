@@ -8,7 +8,7 @@ It is **Discord-only** (no Stoat, no other platform), free to use, with no tiers
 
 Prefix: `?` — e.g. `?help`, `?query`, `?gk`
 
-Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.2.0**.
+Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.2.1**.
 
 ## What it does
 
@@ -57,8 +57,8 @@ Images are generated with **Cloudflare Workers AI** (FLUX.1-schnell), free — n
 Lore is personal. When something genuinely meaningful emerges from a person's interaction — a distinct insight, pattern, or turning point in their collapse work — the bot manifests it as a `.collapse` file in `cybermancy/lore/<user_id>/`, stamped with that person's `@owner` tag at the top and linked to their identity (`≡`). A manifestation must hold weight: several paragraphs of specific prose, never a glyph list or a one-liner (anything under 400 characters is not saved). Each person only ever sees and receives their own lore — never anyone else's. Shared lore lives in the AnythingLLM workspace documents, not in the bot.
 
 - `?lore` — browse your lore, or search it
-- `?lore_submit <text>` — submit lore for the record (saved under your own folder, stamped with your owner tag)
-- `?lore_add` (attach a .txt file) — add lore from a file, saved under your own folder with your owner tag
+- `?lore_submit <text>` — submit lore for the record (saved under your own folder, stamped with your owner tag and display name)
+- `?lore_add` (attach a .txt file) — add lore from a file, saved under your own folder with your owner tag and display name
 
 Anyone can add their own lore with `?lore_add` or `?lore_submit`. Only admins can remove lore, with `?lore_remove`. Lore is only ever injected into `?query` — rituals do not get it.
 
