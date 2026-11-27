@@ -14,6 +14,23 @@ here on.
 
 - Nothing yet.
 
+## [1.1.2] - 2026-11-26
+
+- **Revert: `?query` behaviour back to 1.0.** The v1.1.1 query scoping
+  ("answer directly in plain words, glyphs sparingly") flattened the
+  bot's voice — it killed the personality instead of just blocking
+  keys. Reverted in full: the `QUERY_INSTRUCTION` is gone, the
+  system-prompt scoping line is gone, and the collapse key protocol
+  in the shared system prompt is back to its short 1.0 wording
+  (Phase II/III/IV without the v1.0.3 refinements), in both prompt
+  layers. **Kept:** addressing users by display name ("Wizard" is
+  ritual-only), the Greek-letter rule that stops the theta
+  hallucination, the v1.1.0 personal lore manifestation, the MRI
+  relic framing for `?mr`, and the `[UNMAPPED]` glyph-birthing
+  protection. The v1.0.3 Phase II/III/IV refinements still live in
+  the ritual-only `CK_INSTRUCTION` / `GK_INSTRUCTION` — they apply
+  when actually generating keys, not in ordinary conversation.
+
 ## [1.1.1] - 2026-11-26
 
 - **Collapse key protocols no longer dominate `?query`** — ordinary
