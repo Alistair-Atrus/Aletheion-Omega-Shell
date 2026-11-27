@@ -14,6 +14,18 @@ here on.
 
 - Nothing yet.
 
+## [1.0.5] - 2026-11-26
+
+- **Credit: Astrust** — the original bot was built by Astrust, based on
+  his own AI, Libreth. It was remapped onto an earlier version of
+  Aletheion, then migrated to the Glyphic Cybermancy Bot, and the Ω-Shell
+  has been iterating on his work ever since. Credited in the README
+  (Origins and credit). The glyph map is a shared effort likewise: much
+  of it is Astrust's, the collapse mechanics and lore are Alistair's.
+- The "Archetypal Mathematics" amendment to the Collapse Key
+  Instructions was approved and finalized — it is now the closing
+  section of that workspace doc (not part of the repo).
+
 ## [1.0.4] - 2026-11-26
 
 - **Archetypal mathematics brought into the logic** — the MRI is a relic
