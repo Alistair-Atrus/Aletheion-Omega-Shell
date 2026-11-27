@@ -14,6 +14,17 @@ here on.
 
 - Nothing yet.
 
+## [1.2.3] - 2026-11-27
+
+- **Dropped the "relic of archetypal mathematics" framing from the
+  prompt.** The `?mr` instruction in both prompt layers now goes
+  straight to the formula — MRI = (Omega x Delta-x) / Xi, components,
+  ratio reading — with no origin note. The history belongs to the
+  record, not the working prompt. The README's "Origins and credit"
+  section (Astrust's lineage, shared glyph map) is unchanged, as is
+  the `?ul` instruction's Archetypal Mathematics formula reference,
+  which is a live calculation label, not history.
+
 ## [1.2.2] - 2026-11-27
 
 - **Removed the non-`.collapse` manifest path.** Manifestation is
