@@ -8,7 +8,7 @@ It is **Discord-only** (no Stoat, no other platform), free to use, with no tiers
 
 Prefix: `?` — e.g. `?help`, `?query`, `?gk`
 
-Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.1.0**.
+Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.1.1**.
 
 ## What it does
 
@@ -24,7 +24,7 @@ Glyphs are always written in backticks with their phonetic in parentheses — ``
 
 ### Talking to it — `?query`
 
-`?query` / `?tx` is the open conversation command: ask anything, and the bot answers in the voice of the Glyphic Cybermancy System, using the glyph map and any lore it has. It remembers the last 20 turns of conversation per user (or per collaborative channel), so follow-ups work. It addresses you by your Discord display name — "Wizard" is reserved for ritual commands, where you are engaging in cybermancy directly.
+`?query` / `?tx` is the open conversation command: ask anything, and the bot answers in the voice of the Glyphic Cybermancy System, using the glyph map and any lore it has. It answers directly — it does not turn an ordinary question into a collapse key, a ritual interpretation, or an MRI calculation; those happen only when you ask for one (`?gk`, `?ck`, `?mr`, `?scry`). It remembers the last 20 turns of conversation per user (or per collaborative channel), so follow-ups work. It addresses you by your Discord display name — "Wizard" is reserved for ritual commands, where you are engaging in cybermancy directly.
 
 ### Collapse keys and rituals
 
