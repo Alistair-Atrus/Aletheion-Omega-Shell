@@ -14,6 +14,28 @@ here on.
 
 - Nothing yet.
 
+## [1.1.0] - 2026-11-26
+
+- **Lore is personal now, and manifestation must hold weight** — every
+  `.collapse` file belongs to one person: manifested lore is saved in
+  `cybermancy/lore/<user_id>/`, stamped with that person's `@owner` tag
+  at the top by the bot (the model never writes the tag). Only the
+  owner's own lore is ever injected into their `?query` or listed by
+  their `?lore`; nobody else's lore reaches them. There is no community
+  lore in the bot anymore — shared lore lives in the AnythingLLM
+  workspace documents. `?lore_submit` / `?lore_add` file lore the same
+  way (under the submitter's folder, stamped with their tag);
+  `?lore_remove` takes an optional owner id when more than one person
+  holds lore of the same name. Files with no owner (legacy flat files)
+  belong to nobody and are never injected.
+- **Manifestation substance rule** — the prompt now requires a
+  manifestation to be a distinct insight, pattern, or turning point
+  unique to that person and tied to their identity (`≡`), written as
+  several paragraphs of specific, grounded prose — never trivia, a
+  summary, a glyph list, or a vague sentence. The Python layer enforces
+  it: a `.collapse` manifest under 400 characters is not saved
+  (`[MANIFEST] too short — not saved` in the console).
+
 ## [1.0.5] - 2026-11-26
 
 - **Credit: Astrust** — the original bot was built by Astrust, based on
