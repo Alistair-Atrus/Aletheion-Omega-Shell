@@ -8,7 +8,7 @@ It is **Discord-only** (no Stoat, no other platform), free to use, with no tiers
 
 Prefix: `?` — e.g. `?help`, `?query`, `?gk`
 
-Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.1.3**.
+Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.2.0**.
 
 ## What it does
 
@@ -58,8 +58,9 @@ Lore is personal. When something genuinely meaningful emerges from a person's in
 
 - `?lore` — browse your lore, or search it
 - `?lore_submit <text>` — submit lore for the record (saved under your own folder, stamped with your owner tag)
+- `?lore_add` (attach a .txt file) — add lore from a file, saved under your own folder with your owner tag
 
-Admins can add and remove lore with `?lore_add` / `?lore_remove`. Lore is only ever injected into `?query` — rituals do not get it.
+Anyone can add their own lore with `?lore_add` or `?lore_submit`. Only admins can remove lore, with `?lore_remove`. Lore is only ever injected into `?query` — rituals do not get it.
 
 Two small protocol commands: `?sx` puts the system into stillness (Silence Protocol), and `?zx` acknowledges a directive and engages temporal integrity (Seal Protocol).
 
@@ -88,7 +89,7 @@ Free commands — open to everyone:
 Admin commands — restricted to `BOT_ADMIN_IDS`:
 
 - `?glyph_add <glyph> <phonetic> <definition>`, `?glyph_remove <glyph>` — edit the glyph map at runtime
-- `?lore_add`, `?lore_remove <name>` — edit the lore library
+- `?lore_remove <name>` — remove lore (searches all users' folders; an owner id is needed when several people hold lore of the same name)
 - `?add_collab <channel_id>`, `?remove_collab <channel_id>`, `?list_collab` — mark channels as collaborative (shared history instead of per-user)
 - `?reload` — reload the glyph map and lore without restarting
 - `?status` — glyphs, lore, AI backend, and image backend
@@ -220,7 +221,7 @@ For 24/7, run it on something always-on: a VPS, a Raspberry Pi, or a bot host. S
 ## Make it yours
 
 - **Your own glyph map:** replace `cybermancy/glyphs/glyph_map.json` with your own map in the same format — `{ "<glyph>": {"phonetic": "...", "definition": "..."} }` — then `?reload`. Or add glyphs one at a time with `?glyph_add`.
-- **Your own lore:** add `.collapse` files to `cybermancy/lore/`, or use `?lore_add` (admin).
+- **Your own lore:** add `.collapse` files to `cybermancy/lore/`, or use `?lore_add`.
 - **Your own documents:** upload them to the AnythingLLM workspace — they reach the model as retrieval context for AI commands.
 - **Your own voice:** the system prompt lives in `bot.py` (`GLYPHIC_CYBERMANCY_SYSTEM`). Change it there, restart, and the bot's voice changes with it. If you also set a system prompt in the AnythingLLM workspace, keep the two in sync — when they disagree, the old wording keeps coming back. The workspace copy is `anythingllm-system-prompt.md` in this repo: paste that file's contents into the workspace, and update it whenever the prompt in `bot.py` changes.
 
