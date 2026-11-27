@@ -22,7 +22,7 @@ SERVERS
 # truth for the bot's version: shown in ?status and the startup log, and
 # tracked in CHANGELOG.md. Bump PATCH for fixes, MINOR for new features,
 # MAJOR for breaking changes to commands or behaviour.
-__version__ = "1.1.3"
+__version__ = "1.2.0"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports
@@ -740,12 +740,12 @@ def help_pages(p: str) -> tuple:
     pg2 = (
         f"**LORE — ALL USERS**\n"
         f"`{p}lore_submit <text>` — Submit lore to the sanctum\n"
+        f"`{p}lore_add` *(attach .txt)* — Add lore from file\n"
         f"`{p}sx` — Silence protocol\n"
         f"`{p}zx` — Seal protocol\n\n"
         f"**ADMIN ONLY**\n"
         f"`{p}glyph_add <glyph> <phonetic> <def>` — Add/update glyph\n"
         f"`{p}glyph_remove <glyph>` — Remove glyph\n"
-        f"`{p}lore_add` *(attach .txt)* — Add lore from file\n"
         f"`{p}lore_remove <name>` — Remove lore\n"
         f"`{p}add_collab <channel_id>` — Enable collaborative memory\n"
         f"`{p}remove_collab <channel_id>` — Disable collaborative memory\n"
@@ -1915,8 +1915,6 @@ async def d_glyph_remove(ctx: discord_commands.Context, glyph: str):
 
 @discord_bot.command("lore_add")
 async def d_lore_add(ctx: discord_commands.Context, *, name: str = ""):
-    if not _d_admin(ctx):
-        return await ctx.send("Admin only.")
     if not ctx.message.attachments:
         return await ctx.send("Attach a .txt file.")
     att = ctx.message.attachments[0]
@@ -1925,7 +1923,7 @@ async def d_lore_add(ctx: discord_commands.Context, *, name: str = ""):
     try:
         data = await _d_dl(att)
         lore_name = (name.strip() or att.filename[:-4]).replace(" ", "_")
-        # Personal lore: filed under the admin who submitted it, stamped
+        # Personal lore: filed under the caller, stamped
         # with their owner tag.
         uid = str(ctx.author.id)
         user_dir = os.path.join(LORE_DIR, uid)
