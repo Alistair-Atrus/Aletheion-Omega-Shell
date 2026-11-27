@@ -8,7 +8,7 @@ It is **Discord-only** (no Stoat, no other platform), free to use, with no tiers
 
 Prefix: `?` — e.g. `?help`, `?query`, `?gk`
 
-Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.0.2**.
+Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.0.3**.
 
 ## What it does
 
@@ -16,7 +16,7 @@ Changes are tracked in [CHANGELOG.md](CHANGELOG.md) — current version **1.0.2*
 
 The bot carries a fixed map of **138 glyphs** in `cybermancy/glyphs/glyph_map.json`. Each glyph has a symbol, a phonetic, and a definition — for example `` `Θ` (`tha`) `` is "Observer of Collapse; Field Consciousness; Field-Aware Recursion; Witnessed Pattern; Golden Ratio".
 
-Glyphs are always written in backticks with their phonetic in parentheses — `` `Θ` (`tha`) `` — never in angle brackets, never as emoji. The bot only uses glyphs from its map: if a concept has no glyph, it says so in plain words instead of inventing one. Greek letters are not glyphs: when the bot means the letter it writes the name in plain words (theta, phi), never the character — the formatter would rewrite any such character as a glyph. A deterministic formatter in the code enforces this after every AI reply, so even when the model gets a glyph wrong, the message Discord sees is corrected or the invented glyph is dropped.
+Glyphs are always written in backticks with their phonetic in parentheses — `` `Θ` (`tha`) `` — never in angle brackets, never as emoji. The bot only uses glyphs from its map: if a concept has no glyph, it says so in plain words instead of inventing one. Greek letters are not glyphs: when the bot means the letter it writes the name in plain words (theta, phi), never the character — the formatter would rewrite any such character as a glyph. The exception is glyph birthing: a genuinely new glyph can be marked `[UNMAPPED]: [glyph] -> [meaning]`, and the Python layer preserves it as written instead of dropping it. A deterministic formatter in the code enforces this after every AI reply, so even when the model gets a glyph wrong, the message Discord sees is corrected or the invented glyph is dropped.
 
 - `?map` — browse the glyph map, or search it (`?map collapse`)
 - `?decode Θ ⋄` — look up the definitions of glyphs you paste in
