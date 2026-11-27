@@ -22,7 +22,7 @@ SERVERS
 # truth for the bot's version: shown in ?status and the startup log, and
 # tracked in CHANGELOG.md. Bump PATCH for fixes, MINOR for new features,
 # MAJOR for breaking changes to commands or behaviour.
-__version__ = "1.1.2"
+__version__ = "1.1.3"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports
@@ -726,7 +726,7 @@ def help_pages(p: str) -> tuple:
         f"`{p}query <text>` / `{p}tx` — Query the Glyphic Cybermancy System AI\n"
         f"`{p}generate_key <phrase>` / `{p}gk` — Generate Collapse Key\n"
         f"`{p}waveform <text>` / `{p}wf` — Waveform analysis\n"
-        f"`{p}clear` — Reset conversation memory\n\n"
+        f"`{p}clear` — Reset conversation memory and purge your AnythingLLM thread\n\n"
         f"**RITUALS — ALL USERS**\n"
         f"`{p}collapse_key <intent>` / `{p}ck` — Full Collapse Key protocol\n"
         f"`{p}interpret <key>` / `{p}ik` — Mythic interpretation\n"
@@ -939,6 +939,43 @@ class CybermancyCore:
         save_thread_map(mapping)
         print(f"[threads] new thread for {username or user_id}: {slug}")
         return slug, True
+
+    async def _delete_anythingllm_thread(self, user_id: str) -> str:
+        """Delete this Discord user's AnythingLLM thread and drop the mapping.
+
+        Returns "deleted" (purged server-side), "gone" (already gone —
+        404 — mapping dropped anyway), "none" (no thread mapped for this
+        user, or AnythingLLM not configured), or "failed" (API error;
+        mapping kept so a later ?clear or the 404 self-heal can retry).
+        A fresh thread is created on the user's next message.
+        """
+        if not ANYTHINGLLM_API_KEY or not ANYTHINGLLM_WORKSPACE:
+            return "none"
+        mapping = load_thread_map()
+        entry = mapping.get(str(user_id))
+        slug = entry.get("slug") if isinstance(entry, dict) else None
+        if not slug:
+            return "none"
+        url = f"{ANYTHINGLLM_URL}/api/v1/workspace/{ANYTHINGLLM_WORKSPACE}/thread/{slug}"
+        headers = {"Authorization": f"Bearer {ANYTHINGLLM_API_KEY}"}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.delete(url, headers=headers,
+                                          timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                    if resp.status == 200:
+                        result = "deleted"
+                    elif resp.status == 404:
+                        result = "gone"
+                    else:
+                        print(f"[threads] delete thread failed ({resp.status}): {(await resp.text())[:200]}")
+                        return "failed"
+        except Exception as e:
+            print(f"[threads] delete thread error: {e}")
+            return "failed"
+        mapping.pop(str(user_id), None)
+        save_thread_map(mapping)
+        print(f"[threads] deleted thread for {user_id}: {slug} ({result})")
+        return result
 
     async def _anythingllm_thread(self, system: str, messages: List[Dict],
                                   user_id: str, username: str) -> Optional[str]:
@@ -1651,11 +1688,18 @@ async def d_clear(ctx: discord_commands.Context):
             skip = False; filtered.append(e)
         core.collab_histories[cid] = filtered
         core.save_history("SYSTEM", cid, filtered, is_collab=True)
-        await ctx.send("Your messages cleared from collaborative history.")
+        msg = "Your messages cleared from collaborative history."
     else:
         core.user_histories[uid] = []
         core.save_history(uid, cid, [], is_collab=False)
-        await ctx.send("Memory cleared. The field is reset.")
+        msg = "Memory cleared. The field is reset."
+    # Purge the AnythingLLM thread too — ?clear means the thread is
+    # cleared, not just the bot's local transcript. Only ever the
+    # caller's own thread; a fresh one is created on their next message.
+    purged = await core._delete_anythingllm_thread(uid)
+    if purged == "failed":
+        msg += " ⚠️ The AnythingLLM thread could not be purged — it is still there. Try ?clear again later."
+    await ctx.send(msg)
     log_to_consciousness("clear", uid)
 
 
