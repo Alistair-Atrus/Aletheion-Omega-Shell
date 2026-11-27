@@ -14,6 +14,23 @@ here on.
 
 - Nothing yet.
 
+## [1.1.1] - 2026-11-26
+
+- **Collapse key protocols no longer dominate `?query`** — ordinary
+  questions were being answered as if they were key requests (glyph
+  keys, ritual interpretations, MRI calculations, repeated verbatim).
+  Root cause: `?query` sent the full key-heavy system prompt with no
+  instruction of its own, so the model latched onto the most salient
+  part — the collapse key protocol — and applied it to everything.
+  `?query` now carries its own instruction, like rituals do: answer
+  directly in plain words, glyphs sparingly and only where they
+  clarify, never a key / ritual interpretation / MRI unless the user
+  explicitly asks for one, and do not repeat yourself. The system
+  prompt (both layers) states the same rule, and the protocol header
+  now reads "only when the user asks for a key — never for ordinary
+  questions". In thread mode the query instruction is re-sent every
+  turn, the same way ritual instructions are.
+
 ## [1.1.0] - 2026-11-26
 
 - **Lore is personal now, and manifestation must hold weight** — every
