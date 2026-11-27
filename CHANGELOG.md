@@ -14,6 +14,23 @@ here on.
 
 - Nothing yet.
 
+## [1.1.3] - 2026-11-27
+
+- **`?clear` now actually clears the user's AnythingLLM thread.**
+  Until now it only wiped the bot's local 50-turn transcript
+  (`cybermancy/history/users/<id>.json`), which the thread path never
+  re-sends — so on the primary path it was effectively a no-op and
+  "the field is reset" was not true. `?clear` now also DELETEs the
+  caller's own AnythingLLM thread via the API and drops the mapping
+  from `threads.json`, so the next message starts a fresh thread with
+  the full system. Only ever the caller's own thread (anyone can clear
+  their own; nobody else's). A 404 (already gone) counts as cleared;
+  any other API failure keeps the mapping and tells the user the
+  thread could not be purged. Local history is still cleared first.
+  Also fixed `delete_threads.py`, which looked up the map's thread
+  key as `thread_slug` while the bot writes `slug` — it would have
+  found nothing to delete.
+
 ## [1.1.2] - 2026-11-26
 
 - **Revert: `?query` behaviour back to 1.0.** The v1.1.1 query scoping
