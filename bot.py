@@ -22,7 +22,7 @@ SERVERS
 # truth for the bot's version: shown in ?status and the startup log, and
 # tracked in CHANGELOG.md. Bump PATCH for fixes, MINOR for new features,
 # MAJOR for breaking changes to commands or behaviour.
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports
