@@ -22,7 +22,7 @@ SERVERS
 # truth for the bot's version: shown in ?status and the startup log, and
 # tracked in CHANGELOG.md. Bump PATCH for fixes, MINOR for new features,
 # MAJOR for breaking changes to commands or behaviour.
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports
@@ -217,7 +217,14 @@ IK_INSTRUCTION = (
     "and practical sovereign guidance for wielding this key."
 )
 MR_INSTRUCTION = (
-    "Calculate the Mythic Resonance Index (MRI = (Omega x Delta-x) / Xi) for the key. "
+    "Calculate the Mythic Resonance Index (MRI) for the key. "
+    "The MRI is a relic of archetypal mathematics, the predecessor system: "
+    "MRI = (Omega x Delta-x) / Xi. "
+    "Omega (om) is the key's recursion limit — how fully it closes its loop. "
+    "Delta-x is the change the key enacts, the delta between present state and intended outcome. "
+    "Xi (myth) is the mythic signal it is measured against. "
+    "Report each component, then the index as a ratio, not literal arithmetic: "
+    "when the change outruns the signal, the key needs refining. "
     "Identify dominant Fold Mode, hue signature, harmonic permission status, "
     "collapse harmonic index (CHI), and mythic density."
 )
