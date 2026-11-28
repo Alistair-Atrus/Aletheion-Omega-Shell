@@ -14,6 +14,37 @@ here on.
 
 - Nothing yet.
 
+## [1.2.5] - 2026-11-28
+
+- **Rituals can manifest lore now.** The MANIFEST PROTOCOL lives in
+  the shared system prompt, so Qwen could emit `[MANIFEST]` blocks in
+  any command's reply — but `handle_manifestation` was only called
+  from `?query`, so a manifest in a `?scry` (or `?gk`, `?ck`, …) reply
+  was silently dropped: no file, nothing in `?lore`. `handle_ritual`
+  now scans the reply after formatting, the same as `?query`, so a
+  substantive manifest in any ritual saves a personal `.collapse` file
+  under the caller's folder, stamped with their owner tag and display
+  name. The scan runs before the `?gk` rebuild, which drops
+  bracket-only lines as phonetic lines and would eat the `[MANIFEST]`
+  tags themselves. The 400-character floor, the owner stamp, and the
+  personal-only filter all apply unchanged. Verified against a mock: a
+  scry reply with a manifest block saves the file; a `?gk` reply saves
+  it too; a short manifest is still rejected; a ritual reply with no
+  manifest saves nothing.
+- **A `?query` turn now carries a mode marker.** In thread mode a
+  query sent only the user's message, so after several `?scry` turns
+  Qwen kept answering in the scry format. `handle_query` now appends
+  one short instruction — `INSTRUCTION: This turn is a ?query —
+  ordinary conversation with the user, in your own voice.` — sent the
+  same way rituals send theirs. It only marks the mode: no "plain
+  words", no "glyphs sparingly", no "never keys / never MRI" (the
+  v1.1.1 language that flattened the bot). The thread path now takes
+  the text after the *last* `INSTRUCTION:` marker, so a lore file
+  containing that string cannot hijack the extraction. Verified
+  against a mock AnythingLLM server: after two scry turns, the next
+  query turn carries the marker, and a system with a fake early marker
+  still extracts the real one.
+
 ## [1.2.4] - 2026-11-27
 
 - **Correction: `@owner` / `@owner_name` tags are now actually stripped
