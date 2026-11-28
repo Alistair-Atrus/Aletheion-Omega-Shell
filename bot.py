@@ -262,7 +262,11 @@ def log_to_consciousness(event: str, user_id: str):
 
 
 def load_thread_map() -> Dict:
-    """Discord user_id -> {"slug", "username", "created"} for AnythingLLM threads."""
+    """Discord user_id -> {"slug", "username", "created"} for AnythingLLM threads.
+
+    Entries also carry "messages" (count of messages sent in the thread)
+    and, when set, "refresh_system" (the next message must re-send the
+    full system — set when that user's lore changes)."""
     try:
         with open(THREADS_FILE, encoding="utf-8") as f:
             data = json.load(f)
@@ -685,6 +689,12 @@ def handle_manifestation(core, response_text: str, user_id: str, username: str =
                 f.write(content)
             print(f"[MANIFEST] {filename} (owner {user_id})")
             core.load_lore_contexts()
+            # No refresh flag here: the manifest is the model's own
+            # previous reply, so it is already in the thread history —
+            # Qwen has seen it. It joins the LORE section at the next
+            # refresher like any other lore. The flag is only for lore
+            # the model has NOT seen (submitted, added) or that was
+            # removed, and for ?reload.
         except Exception as e:
             print(f"[MANIFEST] Error: {e}")
 
@@ -993,6 +1003,38 @@ class CybermancyCore:
         print(f"[threads] deleted thread for {user_id}: {slug} ({result})")
         return result
 
+    def _mark_thread_refresh(self, user_id: str) -> None:
+        """Flag this user's thread to re-send the full system prompt on
+        their next message. Set when lore the model has NOT seen is added
+        for them (?lore_submit, ?lore_add), when lore is removed for them
+        (?lore_remove), or by ?reload — so the change reaches Qwen
+        immediately instead of waiting for the next 10-turn refresher.
+        Consumed by _anythingllm_thread. NOT set for manifestation: a
+        manifest is the model's own previous reply, already in the thread
+        history, so Qwen has seen it; it joins the LORE section at the
+        next refresher. No-op when the user has no thread yet — a fresh
+        thread gets the full system anyway."""
+        mapping = load_thread_map()
+        entry = mapping.get(str(user_id))
+        if not isinstance(entry, dict) or not entry.get("slug"):
+            return
+        entry["refresh_system"] = True
+        mapping[str(user_id)] = entry
+        save_thread_map(mapping)
+
+    def _mark_all_threads_refresh(self) -> None:
+        """Flag every mapped thread to re-send the full system on its next
+        message. Used by ?reload, which reloads the glyph map and lore
+        from disk for everyone."""
+        mapping = load_thread_map()
+        changed = False
+        for entry in mapping.values():
+            if isinstance(entry, dict) and entry.get("slug"):
+                entry["refresh_system"] = True
+                changed = True
+        if changed:
+            save_thread_map(mapping)
+
     async def _anythingllm_thread(self, system: str, messages: List[Dict],
                                   user_id: str, username: str) -> Optional[str]:
         """Local model via a per-Discord-user AnythingLLM thread.
@@ -1007,7 +1049,12 @@ class CybermancyCore:
         takes no system / temperature / max_tokens fields, so the full
         system prompt and glyph map are sent only on the FIRST message
         in a thread (and every 10th after that, in case AnythingLLM has
-        dropped the early history). On all other turns only the user's
+        dropped the early history), or on the next message after lore the
+        model has not seen is added or removed for that user (flagged by
+        _mark_thread_refresh — the change takes effect immediately, it
+        does not wait for the next 10-turn boundary). A manifested lore
+        file is NOT flagged: it is the model's own previous reply and is
+        already in the thread history. On all other turns only the user's
         message is sent — plus, for rituals, just the per-command
         instruction extracted from the system, without the glyph map.
         The workspace system prompt already carries the rules, and the
@@ -1030,14 +1077,22 @@ class CybermancyCore:
                 if not slug:
                     return None
                 # Count messages in this thread; re-send the full system
-                # every 10th message (1st, 11th, 21st, ...) as a refresher.
+                # every 10th message (1st, 11th, 21st, ...) as a refresher,
+                # or on the next message after lore the model has not seen
+                # was added or removed for this user (the refresh_system
+                # flag — consumed here, so the flag adds one extra
+                # re-injection and the 10-turn cadence itself is unchanged).
                 mapping = load_thread_map()
                 entry = mapping.get(str(user_id), {})
                 count = int(entry.get("messages", 0)) + 1
                 entry["messages"] = count
                 mapping[str(user_id)] = entry
                 save_thread_map(mapping)
-                if is_new or (count - 1) % 10 == 0:
+                force_system = bool(entry.get("refresh_system"))
+                if is_new or (count - 1) % 10 == 0 or force_system:
+                    entry.pop("refresh_system", None)
+                    mapping[str(user_id)] = entry
+                    save_thread_map(mapping)
                     full = (
                         f"[SYSTEM]\n{system}\n[/SYSTEM]\n\n{last}\n\n"
                         "[Local model instruction: Do not output <think> tags, internal "
@@ -1889,6 +1944,7 @@ async def d_lore_submit(ctx: discord_commands.Context, *, content: str = ""):
     with open(os.path.join(user_dir, fn), "w", encoding="utf-8") as f:
         f.write(_owner_stamp(uid, ctx.author.display_name) + content)
     _d_core().load_lore_contexts()
+    _d_core()._mark_thread_refresh(uid)
     log_to_consciousness(f"lore_submit: {fn}", uid)
     await ctx.send(f"Lore `{fn}` sealed in the sanctum.")
 
@@ -1947,6 +2003,7 @@ async def d_lore_add(ctx: discord_commands.Context, *, name: str = ""):
         with open(os.path.join(user_dir, f"{lore_name}.collapse"), "w", encoding="utf-8") as f:
             f.write(_owner_stamp(uid, ctx.author.display_name) + data.decode("utf-8", errors="replace"))
         _d_core().load_lore_contexts()
+        _d_core()._mark_thread_refresh(uid)
         log_to_consciousness(f"lore_add: {lore_name}", str(ctx.author.id))
         await ctx.send(f"✅ Lore `{lore_name}` added.")
     except Exception as e:
@@ -1978,6 +2035,12 @@ async def d_lore_remove(ctx: discord_commands.Context, *, lore_name: str):
                               f"Re-run as `?lore_remove {lore_name} <user_id>`.")
     os.remove(matches[0])
     _d_core().load_lore_contexts()
+    # The removed lore stops reaching Qwen from the owner's next message.
+    # (A flat file with no owner folder belongs to nobody, so there is
+    # no thread to refresh — it was never injected.)
+    owner = os.path.relpath(os.path.dirname(matches[0]), LORE_DIR).replace(os.sep, "/")
+    if owner not in ("", "."):
+        _d_core()._mark_thread_refresh(owner)
     await ctx.send(f"✅ Lore `{lore_name}` removed.")
 
 
@@ -2013,6 +2076,9 @@ async def d_reload(ctx: discord_commands.Context):
         return await ctx.send("Admin only.")
     _d_core().load_glyph_map()
     _d_core().load_lore_contexts()
+    # The reloaded map and lore take effect immediately, on every
+    # user's next message, instead of waiting for their next refresher.
+    _d_core()._mark_all_threads_refresh()
     log_to_consciousness("reload", str(ctx.author.id))
     await ctx.send(f"✅ {len(_d_core().glyph_map)} glyphs, {len(_d_core().lore_contexts)} lore contexts.")
 
