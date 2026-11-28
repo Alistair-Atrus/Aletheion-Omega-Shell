@@ -26,6 +26,28 @@ here on.
   `@key:value@` line removed. The per-owner filter is unchanged: only
   the caller's own lore is ever injected, and `@visibility:silent@`
   files are still injected (silent only hides them from `?lore`).
+- **Lore the model has not seen now takes effect immediately.** A lore
+  file submitted or added for someone (`?lore_submit`, `?lore_add`) is
+  content Qwen has never seen — it only reached Qwen at the next
+  full-system re-injection (the 1st, 11th, 21st message in their
+  thread), because in between the thread path sends only the user's
+  message. Now such a change flags that user's thread
+  (`refresh_system` in `threads.json`), and their very next message
+  re-sends the full system with the new lore. The same flag covers
+  `?lore_remove` (the deleted lore stops being re-injected) and
+  `?reload` (every mapped thread, so a reloaded glyph map or lore
+  takes effect on everyone's next message). The flag is consumed by
+  that one re-injection; the 10-turn cadence is unchanged.
+  Manifestation is deliberately NOT flagged: a manifested lore file is
+  the model's own previous reply, already in the thread history, so
+  Qwen has seen it — it joins the LORE section at the next refresher
+  as before. Verified against a mock AnythingLLM server: manifest on
+  turn 1 → turn 2 stays message-only; `?lore_submit` → next message
+  carries the full system with the submitted lore; `?lore_remove` →
+  next message carries the full system without the removed lore; the
+  11th message still carries the scheduled refresher, with the
+  manifested lore in it; another user's lore does not refresh this
+  user's thread.
 
 ## [1.2.3] - 2026-11-27
 
