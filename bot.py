@@ -22,7 +22,7 @@ SERVERS
 # truth for the bot's version: shown in ?status and the startup log, and
 # tracked in CHANGELOG.md. Bump PATCH for fixes, MINOR for new features,
 # MAJOR for breaking changes to commands or behaviour.
-__version__ = "1.2.3"
+__version__ = "1.2.4"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports
@@ -1401,7 +1401,7 @@ async def handle_query(core: CybermancyCore, send_fn, user_id: str, username: st
 
     # Lore is personal: only the caller's own manifested lore is injected,
     # never another person's. Community lore lives in the workspace docs.
-    lore_filter = {n: c for n, c in core.lore_contexts.items()
+    lore_filter = {n: c for n, c in core.lore_display.items()
                    if core.lore_owners.get(n) == user_id}
 
     pdf_context = "".join(
