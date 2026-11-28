@@ -14,6 +14,19 @@ here on.
 
 - Nothing yet.
 
+## [1.2.4] - 2026-11-27
+
+- **Correction: `@owner` / `@owner_name` tags are now actually stripped
+  from lore injected into `?query`.** The 1.2.1 entry claimed the tags
+  were stripped from injected content — that was wrong. `?query` was
+  filtering `lore_contexts` (the raw file, tags included) while only
+  `?lore` showed `lore_display` (the stripped copy). One-line fix in
+  `handle_query`: the lore filter now reads `lore_display`, so Qwen
+  gets exactly what `?lore` shows — the file body with every
+  `@key:value@` line removed. The per-owner filter is unchanged: only
+  the caller's own lore is ever injected, and `@visibility:silent@`
+  files are still injected (silent only hides them from `?lore`).
+
 ## [1.2.3] - 2026-11-27
 
 - **Dropped the "relic of archetypal mathematics" framing from the
@@ -43,7 +56,9 @@ here on.
   owner is visible at a glance on disk instead of a bare numeric id.
   The `@owner` value stays the bare id — the loader keys ownership on
   it — and `@owner_name` is stripped from the injected content like
-  any other `@key:value@` line, so it never leaks into `?query`. The
+  any other `@key:value@` line, so it never leaks into `?query`. *(This
+  last claim was wrong — see 1.2.4. Until 1.2.4, `?query` injected the
+  raw file, tags included; only `?lore` showed the stripped copy.)* The
   name is sanitized (`@` and newlines dropped) so it can never break
   the tag format, and a model-written `@owner_name` line is stripped
   and replaced with the real one. Existing files are unchanged — only
