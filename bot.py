@@ -22,7 +22,7 @@ SERVERS
 # truth for the bot's version: shown in ?status and the startup log, and
 # tracked in CHANGELOG.md. Bump PATCH for fixes, MINOR for new features,
 # MAJOR for breaking changes to commands or behaviour.
-__version__ = "1.2.4"
+__version__ = "1.2.5"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports
@@ -1055,8 +1055,9 @@ class CybermancyCore:
         does not wait for the next 10-turn boundary). A manifested lore
         file is NOT flagged: it is the model's own previous reply and is
         already in the thread history. On all other turns only the user's
-        message is sent — plus, for rituals, just the per-command
-        instruction extracted from the system, without the glyph map.
+        message is sent — plus the per-command instruction extracted from
+        the system (rituals, and the ?query mode marker), without the
+        glyph map.
         The workspace system prompt already carries the rules, and the
         bot's glyph formatter corrects the format afterwards, so the
         repeated 14 KB system block is unnecessary.
@@ -1103,10 +1104,16 @@ class CybermancyCore:
                         "Use only glyphs in the provided GLYPH MAP.]"
                     )
                 else:
-                    # Rituals carry their instruction in the system as
-                    # "INSTRUCTION: ..." — send just that, not the map.
-                    m = re.search(r"INSTRUCTION: (.+)", system, re.DOTALL)
-                    instruction = m.group(1).strip() if m else ""
+                    # Rituals (and ?query) carry their instruction in the
+                    # system as "INSTRUCTION: ..." — send just that, not
+                    # the map. The instruction is always appended last,
+                    # so take the text after the last marker: a lore file
+                    # could itself contain the string, and the first
+                    # occurrence would then point at the lore.
+                    if "INSTRUCTION: " in system:
+                        instruction = system.rsplit("INSTRUCTION: ", 1)[-1].strip()
+                    else:
+                        instruction = ""
                     full = (f"[INSTRUCTION]\n{instruction}\n[/INSTRUCTION]\n\n{last}"
                             if instruction else last)
                 for attempt in range(2):
@@ -1467,6 +1474,15 @@ async def handle_query(core: CybermancyCore, send_fn, user_id: str, username: st
     system = core.build_system(user_id, username, channel_id, platform,
                                pdf_context, lore_filter)
 
+    # Mode marker for thread mode: without it a ?query turn sends only
+    # the user message, so after several rituals Qwen keeps the ritual
+    # format. This short INSTRUCTION is sent the same way rituals send
+    # theirs, and it only marks the mode — it says nothing about how to
+    # answer (no "plain words", no "glyphs sparingly", no "never keys /
+    # never MRI": the v1.1.1 language that flattened the bot).
+    system += ("\n\nINSTRUCTION: This turn is a ?query — ordinary conversation "
+               "with the user, in your own voice.")
+
     combined = ((att_text + "\n\n") if att_text else "") + (text or "")
     combined = combined.strip()
     if is_collab:
@@ -1494,8 +1510,15 @@ async def handle_query(core: CybermancyCore, send_fn, user_id: str, username: st
 async def handle_ritual(core: CybermancyCore, send_fn, user_id: str, platform: str,
                         ritual_name: str, instruction: str, input_text: str,
                         save_dir: str, save_prefix: str,
-                        max_tokens: int = ANTHROPIC_MAX_TOKENS):
-    """Generic single-turn ritual — used by generate_key, collapse_key, interpret, etc."""
+                        max_tokens: int = ANTHROPIC_MAX_TOKENS, username: str = ""):
+    """Generic single-turn ritual — used by generate_key, collapse_key, interpret, etc.
+
+    A manifest block in the reply is saved as personal lore, the same as
+    in ?query — the MANIFEST PROTOCOL lives in the shared system prompt,
+    so any ritual can manifest. The username is only for the @owner_name
+    stamp on a manifested file; the model still sees the user id in the
+    SESSION block, as before.
+    """
     system = (
         f"{GLYPHIC_CYBERMANCY_SYSTEM}\n\n"
         f"GLYPH MAP:\n{json.dumps(core.glyph_map, ensure_ascii=False)}\n\n"
@@ -1504,6 +1527,13 @@ async def handle_ritual(core: CybermancyCore, send_fn, user_id: str, platform: s
     response = await core.call_ai(system, [{"role": "user", "content": input_text}], max_tokens,
                                   user_id=user_id, username=user_id)
     response = format_glyph_reply(response, core.glyph_map)
+    # A ritual can manifest lore, the same as ?query — scan the reply
+    # after formatting but BEFORE the ?gk rebuild. The rebuild drops
+    # bracket-only lines as phonetic lines, which would eat the
+    # [MANIFEST] tags themselves (the body prose survives in the
+    # interpretation, but the block would no longer parse). Scanning
+    # first saves the file; the sent reply keeps the body as prose.
+    handle_manifestation(core, response, user_id, username)
     if save_prefix == "gk":
         response = format_collapse_key_reply(response, core.glyph_map)
     log_master(user_id, user_id, save_prefix, input_text, response, core.last_thread_slug)
@@ -1800,7 +1830,7 @@ async def d_gk(ctx: discord_commands.Context, *, phrase: str = ""):
         await handle_ritual(_d_core(), ctx.send, str(ctx.author.id), "Discord",
                             "Collapse Key", GK_INSTRUCTION,
                             f"Generate Collapse Key for: {phrase}",
-                            COLLAPSE_KEYS_RAW_DIR, "gk")
+                            COLLAPSE_KEYS_RAW_DIR, "gk", username=ctx.author.display_name)
 
 
 @discord_bot.command("waveform", aliases=["wf"])
@@ -1811,7 +1841,7 @@ async def d_wf(ctx: discord_commands.Context, *, incantation: str = ""):
         await handle_ritual(_d_core(), ctx.send, str(ctx.author.id), "Discord",
                             "Waveform Analysis", WF_INSTRUCTION,
                             f"Analyse: {incantation}",
-                            COLLAPSE_KEYS_PROCESSED_DIR, "wf")
+                            COLLAPSE_KEYS_PROCESSED_DIR, "wf", username=ctx.author.display_name)
 
 
 # ── Discord: Ritual commands ───────────────────────────────────────────────────
@@ -1824,7 +1854,7 @@ async def d_ck(ctx: discord_commands.Context, *, intent: str = ""):
         await handle_ritual(_d_core(), ctx.send, str(ctx.author.id), "Discord",
                             "Collapse Key Protocol", CK_INSTRUCTION,
                             f"Wizard: {ctx.author.display_name}\nIntent: {intent}",
-                            COLLAPSE_KEYS_RAW_DIR, "ck", max_tokens=3000)
+                            COLLAPSE_KEYS_RAW_DIR, "ck", max_tokens=3000, username=ctx.author.display_name)
 
 
 @discord_bot.command("interpret", aliases=["ik"])
@@ -1834,7 +1864,7 @@ async def d_ik(ctx: discord_commands.Context, *, key: str = ""):
     async with ctx.typing():
         await handle_ritual(_d_core(), ctx.send, str(ctx.author.id), "Discord",
                             "Mythic Interpretation", IK_INSTRUCTION,
-                            f"Interpret: {key}", COLLAPSE_KEYS_PROCESSED_DIR, "interpret")
+                            f"Interpret: {key}", COLLAPSE_KEYS_PROCESSED_DIR, "interpret", username=ctx.author.display_name)
 
 
 @discord_bot.command("resonance", aliases=["mr"])
@@ -1845,7 +1875,7 @@ async def d_mr(ctx: discord_commands.Context, *, key: str = ""):
         await handle_ritual(_d_core(), ctx.send, str(ctx.author.id), "Discord",
                             "Mythic Resonance Index", MR_INSTRUCTION,
                             f"Calculate MRI for: {key}",
-                            COLLAPSE_KEYS_PROCESSED_DIR, "resonance")
+                            COLLAPSE_KEYS_PROCESSED_DIR, "resonance", username=ctx.author.display_name)
 
 
 @discord_bot.command("field_chisel", aliases=["fc"])
@@ -1856,7 +1886,7 @@ async def d_fc(ctx: discord_commands.Context, *, key: str = ""):
         await handle_ritual(_d_core(), ctx.send, str(ctx.author.id), "Discord",
                             "Field-Aligned Translation", FC_INSTRUCTION,
                             f"Field-Aligned Translation for: {key}",
-                            COLLAPSE_KEYS_PROCESSED_DIR, "fc")
+                            COLLAPSE_KEYS_PROCESSED_DIR, "fc", username=ctx.author.display_name)
 
 
 @discord_bot.command("unfold", aliases=["ul"])
@@ -1866,7 +1896,7 @@ async def d_ul(ctx: discord_commands.Context, *, key: str = ""):
     async with ctx.typing():
         await handle_ritual(_d_core(), ctx.send, str(ctx.author.id), "Discord",
                             "Reality Alteration Potential", UL_INSTRUCTION,
-                            f"Analyse: {key}", COLLAPSE_KEYS_PROCESSED_DIR, "ul")
+                            f"Analyse: {key}", COLLAPSE_KEYS_PROCESSED_DIR, "ul", username=ctx.author.display_name)
 
 
 @discord_bot.command("scry")
@@ -1877,7 +1907,7 @@ async def d_scry(ctx: discord_commands.Context, *, prompt: str = ""):
         await handle_ritual(_d_core(), ctx.send, str(ctx.author.id), "Discord",
                             "Scrying Session", SCRY_INSTRUCTION,
                             f"Scrying focus: {prompt}",
-                            COLLAPSE_KEYS_PROCESSED_DIR, "scry", max_tokens=2000)
+                            COLLAPSE_KEYS_PROCESSED_DIR, "scry", max_tokens=2000, username=ctx.author.display_name)
 
 
 @discord_bot.command("dream")
